@@ -5,9 +5,7 @@ on:
     types: [completed]
     branches: [main]
   workflow_dispatch:
-permissions:
-  contents: read
-  packages: read
+permissions: {contents: read, packages: read}
 concurrency:
   group: managed-production
   cancel-in-progress: false
@@ -19,31 +17,41 @@ jobs:
        github.event.workflow_run.head_repository.full_name == github.repository &&
        (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch'))
     runs-on: [self-hosted, Linux, ARM64]
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
       RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
       DOCKER_CONFIG: /tmp/th-managed-registry-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
-      - name: Verify application runner
-        env: {SELECTED_RUNNER: '${{ runner.name }}'}
-        run: test "$SELECTED_RUNNER" = th-mes.ticket
-      - uses: actions/checkout@v5
-        with:
-          persist-credentials: false
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Fetch pinned TH-Server deployment implementation
-        run: curl --fail --location --retry 3 --max-time 60 https://raw.githubusercontent.com/TuanPham0411/TH-RPI.Server/dbc5cfff14d73f46fb70018a22433faa516efd57/deploy/application.py -o "$RUNNER_TEMP/th-platform-application.py"
-      - name: Deploy with Drive-first storage
+      - name: Deploy immutable images with the TH-Server implementation
         env:
+          SELECTED_RUNNER: '${{ runner.name }}'
+          REGISTRY_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+          REGISTRY_USER: '${{ github.actor }}'
           TH_APPLICATION: mes-ticket
+          TH_REPOSITORY: TH-MES.Ticket
         run: |
+          set -euo pipefail
+          test "$SELECTED_RUNNER" = th-mes.ticket
+          umask 077
+          RELEASE_SOURCE="$(mktemp -d "$RUNNER_TEMP/th-release.XXXXXX")"
+          export RELEASE_SOURCE
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true; rm -rf "$DOCKER_CONFIG" "$RELEASE_SOURCE"' EXIT
+          registered=false
+          for attempt in 1 2 3; do
+            if printf '%s' "$REGISTRY_TOKEN" | timeout 60s docker login ghcr.io --username "$REGISTRY_USER" --password-stdin; then
+              registered=true
+              break
+            fi
+            sleep 5
+          done
+          test "$registered" = true
+          for file in compose.yaml storage.compose.yaml database-init.sh; do
+            curl --fail --silent --show-error --location --retry 3 --max-time 60 "https://raw.githubusercontent.com/TuanPham0411/$TH_REPOSITORY/$RELEASE_SHA/$file" -o "$RELEASE_SOURCE/$file"
+          done
+          curl --fail --silent --show-error --location --retry 3 --max-time 60 https://raw.githubusercontent.com/TuanPham0411/TH-RPI.Server/3091f49b328310e2e473c91919ee05efb9395670/deploy/application.py -o "$RELEASE_SOURCE/application.py"
           python3 - <<'PYTHON'
           import os,shlex,subprocess
-          command=['python3',os.path.join(os.environ['RUNNER_TEMP'],'th-platform-application.py'),'--application',os.environ['TH_APPLICATION'],'--image-tag',os.environ['RELEASE_SHA'],'--source',os.environ['GITHUB_WORKSPACE']]
+          source=os.environ['RELEASE_SOURCE']
+          command=['python3',source+'/application.py','--application',os.environ['TH_APPLICATION'],'--image-tag',os.environ['RELEASE_SHA'],'--source',source]
           subprocess.run(['sg','docker','-c',shlex.join(command)],check=True)
           PYTHON
