@@ -1,3 +1,4 @@
+import {cachedFilePath} from './th-storage/client.mjs';
 import http from 'node:http';
 import {existsSync} from 'node:fs';
 import {join} from 'node:path';
@@ -13,7 +14,7 @@ export function storageCommand(action,data={},timeout=30000){
  });
 }
 export async function filePath(root,relative,write=false){
- if(!managed(root))return join(root,relative);
+ if(!managed(root))return cachedFilePath(root,relative,write);
  return (await storageCommand('resolve',{path:relative,write})).path;
 }
 export async function deleteEverywhere(root,relative,options={force:true}){
@@ -54,3 +55,4 @@ export function maintenanceGate(){
   get blocked(){return blocked;}
  };
 }
+

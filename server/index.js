@@ -1,3 +1,4 @@
+import {managedPool} from './th-storage/client.mjs';
 import {startNotificationScheduler} from './notifications.js';
 import {wifiRouter} from './wifi.js';
 import {resolve} from 'node:path';
@@ -50,7 +51,7 @@ export function createApp(pool,filesRoot,{sites=runtimeSites(),mesOnly=process.e
  return app;
 }
 if(process.env.NODE_ENV!=='test') {
- const pool=new pg.Pool({connectionString:process.env.DATABASE_URL,max:4,idleTimeoutMillis:30000,connectionTimeoutMillis:5000,options:'-c statement_timeout=15000'});
+ const pool=managedPool(new pg.Pool({connectionString:process.env.DATABASE_URL,max:4,idleTimeoutMillis:30000,connectionTimeoutMillis:5000,options:'-c statement_timeout=15000'}),'mes-ticket');
  pool.on('error',error=>console.error('Database connection interrupted',{code:error.code||'connection-error'}));
  const filesRoot=process.env.FILES_ROOT||'/var/lib/th-app/files';
  const app=createApp(pool,process.env.FILES_ROOT||'/var/lib/th-app/files');
@@ -59,3 +60,4 @@ if(process.env.NODE_ENV!=='test') {
  const cleanup=setInterval(()=>{if(app.locals.maintenance.blocked||backupActive())return;return cleanupUploads(pool,filesRoot).then(()=>pool.query("delete from public.file_grants where expires<now(); delete from portfolio.sessions where expires<now(); delete from portfolio.tokens where expires<now()")).catch(()=>{});},3600000);cleanup.unref();
  process.on('SIGTERM',()=>{clearInterval(cleanup);stopNotifications();server.close(()=>pool.end().then(()=>process.exit(0)));});
 }
+

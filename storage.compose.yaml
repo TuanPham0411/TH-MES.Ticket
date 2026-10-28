@@ -1,0 +1,18 @@
+services:
+  mes:
+    stop_grace_period: 6m
+    environment:
+      TH_STORAGE_MODE: drive-first
+      TH_RELEASE: ${IMAGE_TAG:?Immutable release required}
+      TH_STORAGE_SOCKET: /run/th-storage/storage.sock
+      TH_STORAGE_TOKEN: ${TH_STORAGE_TOKEN:?Central storage token required}
+    volumes:
+      - ${TH_STORAGE_RUN_DIR:?Central storage socket directory required}:/run/th-storage:ro
+  migrate:
+    environment:
+      PGOPTIONS: -c th_storage.authorized=1
+      TH_RELEASE: ${IMAGE_TAG:?Immutable release required}
+      TH_STORAGE_SOCKET: /run/th-storage/storage.sock
+      TH_STORAGE_TOKEN: ${TH_STORAGE_TOKEN:?Central storage token required}
+    volumes:
+      - ${TH_STORAGE_RUN_DIR:?Central storage socket directory required}:/run/th-storage:ro

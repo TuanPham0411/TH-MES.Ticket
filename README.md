@@ -23,3 +23,19 @@ Tickets/accounts/dashboard/notifications/local storage run in the unprivileged c
 ## Prepared release
 
 Main pushes test/build on GitHub-hosted runners, package a checksummed source archive and Linux ARM64 bundle with Node.js 22, and publish Docker images. Artifacts are retained 30 days. No automatic production deployment or self-hosted job is enabled. See [replacement-server guide](docs/REINSTALL.md) and [release usage](RELEASE-README.md). Back up existing database, media, Drive mappings and private configuration outside the RPI before reinstalling it; they are not in the source/image.
+
+
+## TH-Server managed storage
+
+The optional `storage.compose.yaml` enables the canonical TH-RPI.Server broker.
+Application SQL transactions are acknowledged by Drive before committing the local
+PostgreSQL projection. Unchanged reads stay local. SQL function writes, background
+jobs and metadata changes use the same capture protocol. Each application has a
+separate broker credential, database and files volume. Do not copy Drive OAuth tokens
+into this repository or switch a provider manually.
+
+The managed deployment workflow runs only after a successful trusted main build. It
+uses the deployment implementation pinned from TH-RPI.Server, retains existing
+volumes and .env, creates a local database backup, uploads a Drive baseline and
+verifies application readiness. A failed migration keeps the maintenance fence and
+backup for operator recovery instead of silently accepting unsynchronized writes.
