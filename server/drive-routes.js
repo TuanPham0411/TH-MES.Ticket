@@ -1,3 +1,4 @@
+import {brokerRequest} from './th-storage/client.mjs';
 import {Router} from 'express';
 import {randomBytes,createHash} from 'node:crypto';
 import {actorFor} from './security.js';
@@ -6,6 +7,11 @@ import {mediaProvider} from './cloud-media.js';
 export function driveRouter(pool){
  const router=Router(),pending=new Map();
  async function owner(req){const actor=actorFor(req.cookies.th_mes,req.headers['x-mes-tester']);const value=(await pool.query('select public.mes_dispatch($1,$2,$3) result',['getSession',{},actor])).rows[0].result;if(!value.isOwner)throw Object.assign(new Error('Administrator required'),{status:403});return actor;}
+ if(process.env.TH_STORAGE_MODE==='drive-first'){
+  router.get('/drive/status',async(req,res)=>{await owner(req);res.json(await brokerRequest({application:'mes-ticket',socketPath:process.env.TH_STORAGE_SOCKET,token:process.env.TH_STORAGE_TOKEN},'/v1/status',{}));});
+  router.use('/drive',async(req,res)=>{await owner(req);res.status(409).json({error:'Drive storage is managed by TH-RPI.Server. Use the server storage configuration.',code:'server-managed-storage'});});
+  return router;
+ }
  router.get('/drive/connect',async(req,res)=>{
   await owner(req);if(!driveConfigured())return res.status(503).send('Google OAuth credentials are not configured on the Pi.');
   const state=randomBytes(32).toString('hex'),verifier=randomBytes(32).toString('hex');for(const [key,value]of pending)if(value.expires<Date.now())pending.delete(key);
@@ -25,3 +31,4 @@ export function driveRouter(pool){
  router.get('/drive/status',async(req,res)=>{await owner(req);const value=await driveCredentials();res.json({configured:driveConfigured(),connected:!!value,email:value?.email,folderId:value?.folderId,provider:await mediaProvider(pool),cloudFiles:Number((await pool.query('select count(*) from public.mes_cloud_files')).rows[0].count)});});
  return router;
 }
+

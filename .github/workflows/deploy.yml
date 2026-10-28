@@ -1,0 +1,49 @@
+name: Deploy managed application
+on:
+  workflow_run:
+    workflows: [Build, test and package]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: read
+concurrency:
+  group: managed-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch'))
+    runs-on: [self-hosted, Linux, ARM64]
+    timeout-minutes: 25
+    env:
+      RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      DOCKER_CONFIG: /tmp/th-managed-registry-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Verify application runner
+        env: {SELECTED_RUNNER: '${{ runner.name }}'}
+        run: test "$SELECTED_RUNNER" = th-mes.ticket
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Fetch pinned TH-Server deployment implementation
+        run: curl --fail --location --retry 3 --max-time 60 https://raw.githubusercontent.com/TuanPham0411/TH-RPI.Server/e2f0ab04074f6e2f31ec14a4387e579a1b260d18/deploy/application.py -o "$RUNNER_TEMP/th-platform-application.py"
+      - name: Deploy with Drive-first storage
+        env:
+          TH_APPLICATION: mes-ticket
+        run: |
+          python3 - <<'PYTHON'
+          import os,shlex,subprocess
+          command=['python3',os.path.join(os.environ['RUNNER_TEMP'],'th-platform-application.py'),'--application',os.environ['TH_APPLICATION'],'--image-tag',os.environ['RELEASE_SHA'],'--source',os.environ['GITHUB_WORKSPACE']]
+          subprocess.run(['sg','docker','-c',shlex.join(command)],check=True)
+          PYTHON
