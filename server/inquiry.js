@@ -1,0 +1,1 @@
+export function validInquiry(data) { return !!data && typeof data.name === 'string' && data.name.trim().length > 0 && data.name.length <= 80 && typeof data.message === 'string' && data.message.trim().length >= 20 && data.message.length <= 2000 && ['OT / MES','Software / data','Project collaboration','Other'].includes(data.topic); }

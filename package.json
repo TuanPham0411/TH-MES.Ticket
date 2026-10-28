@@ -1,0 +1,36 @@
+{
+  "name": "th-mes-ticket",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "npm run build:mes && npm run build:server",
+    "build:mes": "vite build --config vite.mes.config.js",
+    "build:server": "node server/build.js",
+    "start": "node start.mjs",
+    "migrate": "node dist/server/migrate.cjs",
+    "bootstrap:owner": "node dist/server/bootstrap-owner.cjs",
+    "test": "node --test tests/*.test.js",
+    "test:integration": "APP_MODE=combined NODE_ENV=test node --test server/tests/*.test.js"
+  },
+  "dependencies": {
+    "@fontsource/carlito": "^5.3.0",
+    "@fontsource/dm-sans": "^5.3.0",
+    "@fontsource/space-grotesk": "^5.3.0",
+    "cookie-parser": "^1.4.7",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.1",
+    "heic-convert": "^2.1.0",
+    "nodemailer": "^10.1.1",
+    "pg": "^8.23.1",
+    "quill": "^2.0.3",
+    "tar-stream": "^3.2.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "vite": "8.3.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

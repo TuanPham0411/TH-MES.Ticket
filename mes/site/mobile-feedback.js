@@ -1,0 +1,27 @@
+import {t} from './i18n.js';
+const $=id=>document.getElementById(id);
+// Presentation only: preserve the existing form, validation, camera and upload handlers.
+export function initMobileFeedback(){
+ const form=$('feedback-form');
+ if(typeof IntersectionObserver!=='undefined')new IntersectionObserver(entries=>document.documentElement.classList.toggle('mobile-masthead-scrolled',!entries[0].isIntersecting)).observe(document.querySelector('.topbar'));
+ function group(name,title,nodes){const section=document.createElement('section');section.className='mobile-feedback-group feedback-'+name;const heading=document.createElement('h3');heading.className='mobile-feedback-heading';heading.textContent=title;section.append(heading);form.insertBefore(section,nodes[0]);for(const node of nodes)section.append(node);return section;}
+ const description=$('description-input'),shell=description.previousElementSibling;
+ const content=group('content','1. Describe the feedback',[form.querySelector('label[for="description-input"]'),shell,description]);
+ const hint=document.createElement('p');hint.className='mobile-feedback-hint helper';hint.textContent='Start with a short summary on the first line. Then explain what happened and what you expected.';content.querySelector('h3').after(hint);
+ const classification=group('classification','2. Add context',[form.querySelector('.form-grid'),form.querySelector('.occurrence-section')]);
+
+ const evidence=group('evidence','3. Add a photo or video (required)',[form.querySelector('label[for="attachment-input"]'),form.querySelector('.upload-zone'),form.querySelector('.capture-actions'),form.querySelector('.capture-actions').nextElementSibling,$('selected-files')]);
+ const prompt=document.createElement('strong');prompt.className='mobile-upload-prompt';prompt.textContent='Add at least one photo or video.';evidence.querySelector('.upload-zone').prepend(prompt);
+ const cameraHint=document.createElement('p');cameraHint.className='mobile-camera-hint';cameraHint.textContent='Use your device camera, or choose existing files. Videos can be up to 200 MB each.';evidence.querySelector('.capture-actions').after(cameraHint);
+ const privacy=document.createElement('p');privacy.className='mobile-feedback-hint helper';privacy.textContent='Check the content before sending. Do not include passwords or sensitive production data.';evidence.append(privacy);
+ const toolbar=shell.querySelector('.rich-toolbar');toolbar.id='mobile-feedback-toolbar';const toggle=document.createElement('button');toggle.type='button';toggle.className='mobile-format-toggle button';toggle.textContent='Text formatting';toggle.setAttribute('aria-controls',toolbar.id);toggle.setAttribute('aria-expanded','false');toggle.onclick=()=>{const expanded=toolbar.classList.toggle('mobile-tools-open');toggle.setAttribute('aria-expanded',String(expanded));};toolbar.before(toggle);
+ if(typeof ResizeObserver!=='undefined')new ResizeObserver(entries=>{const height=entries[0].target.getBoundingClientRect().height;document.documentElement.style.setProperty('--feedback-action-height',height+'px');}).observe(form.querySelector('.form-footer'));
+ const counter=document.createElement('span');counter.id='mobile-attachment-count';counter.className='mobile-feedback-count';counter.setAttribute('aria-live','polite');form.querySelector('.form-footer').prepend(counter);
+ function count(){counter.textContent=`${$('selected-files').children.length} / 5 · ${t('Attachments')}`;}
+ const submit=$('submit-feedback');new MutationObserver(()=>{const busy=submit.disabled&&matchMedia('(max-width:760px), (pointer:coarse) and (max-width:1024px)').matches;form.setAttribute('aria-busy',String(busy));for(const section of form.querySelectorAll('.mobile-feedback-group'))section.inert=busy;}).observe(submit,{attributes:true,attributeFilter:['disabled']});
+ new MutationObserver(count).observe($('selected-files'),{childList:true});$('language-select').addEventListener('change',()=>setTimeout(count,0));count();
+ // Hide the fixed action bar while the software keyboard occupies the visual viewport.
+ const keyboard=()=>{const active=document.activeElement,editing=active?.matches('input,textarea,select,[contenteditable="true"]');const covered=window.visualViewport&&window.innerHeight-window.visualViewport.height>150;document.documentElement.classList.toggle('mobile-keyboard-open',!!editing&&!!covered);};
+ window.visualViewport?.addEventListener('resize',keyboard);document.addEventListener('focusin',keyboard);document.addEventListener('focusout',()=>setTimeout(keyboard,0));
+ form.addEventListener('invalid',event=>{if(!matchMedia('(max-width:760px), (pointer:coarse) and (max-width:1024px)').matches)return;const target=event.target;requestAnimationFrame(()=>target.scrollIntoView({block:'center',behavior:'smooth'}));},true);
+}

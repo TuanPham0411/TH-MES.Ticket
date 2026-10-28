@@ -1,0 +1,10 @@
+node_modules/
+dist/
+mes/dist/
+work/
+.env
+.env.*
+!.env.example
+*.dump
+*.tar.gz
+*.log

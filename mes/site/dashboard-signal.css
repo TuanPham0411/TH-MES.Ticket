@@ -1,0 +1,17 @@
+/* Confined to the measured empty space; never participates in the hero layout. */
+#dashboard-page>.workspace-hero>.dashboard-signal{display:none;position:absolute;top:50%;height:92px;max-height:80%;transform:translateY(-50%);z-index:0;pointer-events:none;user-select:none;overflow:hidden;contain:paint;mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);color:#e08a57}
+#dashboard-page>.workspace-hero>div{position:relative;z-index:1}
+.dashboard-signal path{fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
+.dashboard-signal .signal-wire{stroke-width:.8;opacity:.15}
+.dashboard-signal .signal-packet{stroke-width:1.6;stroke-dasharray:36 964;stroke-dashoffset:1000;opacity:.78;animation:dashboard-signal-flow 8s linear infinite;animation-play-state:paused}
+.dashboard-signal .signal-upper,.dashboard-signal .signal-bottom{color:#71bcb5}
+.dashboard-signal .signal-upper .signal-packet{animation-delay:-3.8s;animation-duration:10s;opacity:.55}
+.dashboard-signal .signal-lower .signal-packet{animation-delay:-6.1s;animation-duration:11s;opacity:.6}
+.dashboard-signal .signal-top .signal-packet{animation-delay:-1.7s;animation-duration:12s;opacity:.48}
+.dashboard-signal .signal-bottom .signal-packet{animation-delay:-8s;animation-duration:13s;opacity:.48}
+.dashboard-signal .signal-junction{fill:currentColor;opacity:.35}
+.dashboard-signal[data-playing=true] .signal-packet{animation-play-state:running}
+:root[data-theme=day] #dashboard-page>.workspace-hero>.dashboard-signal{color:#ac602a}
+:root[data-theme=day] .dashboard-signal .signal-upper,:root[data-theme=day] .dashboard-signal .signal-bottom{color:#328680}
+@keyframes dashboard-signal-flow{from{stroke-dashoffset:1000}to{stroke-dashoffset:0}}
+@media(min-width:1101px) and (prefers-reduced-motion:no-preference){#dashboard-page>.workspace-hero>.dashboard-signal:not([hidden]){display:block}}

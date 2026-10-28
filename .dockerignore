@@ -1,0 +1,11 @@
+.git
+.github
+node_modules
+work
+dist
+mes/dist
+.env
+.env.*
+*.dump
+*.tar.gz
+*.log

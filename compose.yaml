@@ -1,0 +1,49 @@
+services:
+  database:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_DB: mes_ticket
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      MES_DB_PASSWORD: ${MES_DB_PASSWORD:?Set MES_DB_PASSWORD}
+    volumes:
+      - database:/var/lib/postgresql/data
+      - ./database-init.sh:/docker-entrypoint-initdb.d/mes-role.sh:ro
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U postgres -d mes_ticket]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+  migrate:
+    build: .
+    image: ghcr.io/tuanpham0411/th-mes-ticket:${IMAGE_TAG:-latest}
+    command: [node, dist/server/migrate.cjs]
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@database:5432/mes_ticket
+      MES_ORIGIN: ${MES_ORIGIN:?Set MES_ORIGIN}
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: "no"
+  mes:
+    image: ghcr.io/tuanpham0411/th-mes-ticket:${IMAGE_TAG:-latest}
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://th_api:${MES_DB_PASSWORD}@database:5432/mes_ticket
+      PORT: 3000
+      HOST: 0.0.0.0
+      FILES_ROOT: /data/files
+      DRIVE_TOKEN_FILE: /data/drive-credentials.json
+      TRUST_PROXY: loopback,linklocal,uniquelocal
+    ports:
+      - 127.0.0.1:8082:3000
+    volumes:
+      - media:/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+volumes:
+  database:
+  media:

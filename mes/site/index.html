@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <meta name="theme-color" content="#101317" />
+    <title>[TH] P+F MES</title>
+    <link rel="icon" href="/favicon.ico?v=20261023" sizes="16x16 32x32 48x48" />
+    <link rel="icon" href="/favicon.svg?v=20261023" type="image/svg+xml" sizes="any" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261023" sizes="180x180" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/workspace.css" />
+    <script>try{document.documentElement.dataset.theme=(localStorage.getItem("th-mes-theme")==="day"?"day":"night")}catch{document.documentElement.dataset.theme="night"}</script>
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a class="brand" href="#dashboard"
+        ><span class="brand-icon">M</span>
+        <div>[TH] P+F MES<small>FEEDBACK WORKSPACE</small></div></a
+      >
+      <p class="nav-label">WORKSPACE</p>
+      <nav aria-label="Main navigation">
+        <button data-page="dashboard" class="active">
+          <span>◫</span>Dashboard</button
+        ><button data-page="issues">
+          <span>☷</span>Issue list <b id="nav-count">0</b></button
+        ><button data-page="create"><span>⊕</span>Submit feedback</button
+        ><button data-page="my-dashboard"><span>◴</span>My dashboard</button><button data-page="my-issues"><span>▤</span>My tickets</button><button data-page="profile"><span>◎</span>My profile</button><button data-page="settings" id="admin-nav" hidden>
+          <span>⚙</span>Administration
+        </button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="connection">
+          <span></span>
+          <div id="connection-state">Connecting…</div>
+        </div>
+        <button id="account-button" class="account-button">
+          <span class="avatar" id="avatar">V</span>
+          <div>
+            <strong id="account-name" data-user-content>Viewer</strong
+            ><small id="account-role">Read-only access</small>
+          </div>
+          <span>↗</span>
+        </button>
+      </div>
+    </aside>
+    <div class="app-shell">
+      <header class="topbar">
+        <button
+          id="mobile-nav"
+          aria-label="Toggle navigation"
+          aria-expanded="false"
+        >
+          ☰
+        </button>
+        <div class="breadcrumb">
+          Workspace <span>/</span> <strong id="page-crumb">Dashboard</strong>
+        </div>
+        <div class="topbar-actions">
+          <select id="language-select" class="language-select" aria-label="Language"><option value="vi">Tiếng Việt</option><option value="en">English</option></select>
+          <button id="theme-toggle" class="icon-button" type="button" aria-label="Night mode">◐</button>
+          <span class="environment">MES · VIETNAM</span
+          ><button
+            id="refresh-button"
+            class="icon-button"
+            aria-label="Refresh data"
+          >
+            ↻</button
+          ><button id="new-feedback" class="button primary" aria-label="New feedback">
+            ＋ New feedback
+          </button>
+        </div>
+      </header>
+      <div id="preview-banner" class="preview-banner" hidden>
+        <div>
+          <strong>Interface preview · sample data</strong
+          ><span
+            >This preview is disconnected from production. Changes stay in this
+            browser session and are not submitted.</span
+          >
+        </div>
+        <button id="preview-admin" class="button small">
+          Explore admin preview
+        </button>
+      </div>
+      <div id="tester-banner" class="preview-banner" hidden>
+        <div><strong>Tester · user simulation</strong><span>Feedback and attachments are saved to the live workspace as Tester.</span></div>
+        <button id="exit-tester" class="button small">Return to owner</button>
+      </div>
+      <div id="global-message" role="status" aria-live="polite" hidden></div>
+      <main>
+        <section id="dashboard-page" class="page">
+          <div class="page-heading workspace-hero">
+            <div>
+              <p class="eyebrow">OPERATIONS / LIVE WORKSPACE</p>
+              <h1 id="dashboard-title">Dashboard</h1>
+              <p class="subtitle">
+                One workspace. Every signal. Move production forward.
+              </p>
+            </div>
+            <div class="heading-actions">
+              <label class="date-range"
+                >Reporting period<select id="dashboard-period">
+                  <option value="all">All time</option>
+                  <option value="7">Last 7 days</option>
+                  <option value="30">Last 30 days</option>
+                  <option value="90">Last 90 days</option>
+                </select></label
+              >
+            </div>
+          </div>
+          <div id="metrics" class="metrics"></div>
+          <div class="workspace-board">
+            <article class="broadcast-panel"><div class="section-heading"><div><p class="eyebrow">WORKSPACE / UPDATES</p><h2>Notice board</h2></div><span class="live-tag">● LIVE</span></div><div id="notice-board"></div></article>
+            <article class="video-panel"><div class="section-heading"><div><p class="eyebrow">ON AIR / WORKSPACE TV</p><h2 id="workspace-video-title" data-user-content>Workspace video</h2></div><span id="video-position" class="helper"></span></div><div class="video-stage"><video id="workspace-video" controls autoplay muted playsinline preload="auto"></video><div id="video-empty"><span>▷</span><p>Videos published by your administrator will play here.</p></div></div><div class="video-navigation"><button id="video-previous" class="button" type="button" aria-label="Previous video">← Previous</button><span id="video-state" role="status"></span><button id="video-next" class="button" type="button" aria-label="Next video">Next →</button></div></article>
+          </div>
+
+          <div class="chart-grid">
+            <article class="card">
+              <div class="card-heading">
+                <div>
+                  <h2>Status overview</h2>
+                  <p>Current status · selected submission cohort</p>
+                </div>
+              </div>
+              <div id="status-chart" class="status-chart"></div>
+            </article>
+          </div>
+          <div class="chart-grid operations-grid">
+            <article class="card"><div class="card-heading"><div><h2>Resolution performance</h2><p>Selected cohort · grouped by submission date</p></div></div><div id="resolution-insights" class="resolution-insights"></div></article>
+            <article class="card"><div class="card-heading"><div><h2>Backlog by priority</h2><p>Focus on unresolved work in the selected cohort</p></div></div><div id="priority-chart"></div><p id="priority-empty" class="helper" hidden>No unresolved tickets in this period.</p></article>
+          </div>
+          <div class="chart-grid classification-grid"><article class="card"><div class="card-heading"><div><p class="eyebrow">CLASSIFICATION</p><h2>Tickets by issue type</h2><p>Selected reporting period</p></div></div><div id="issue-type-chart" class="classification-chart"></div></article><article class="card"><div class="card-heading"><div><p class="eyebrow">DEPARTMENT PERFORMANCE</p><h2>Department ticket progress</h2><p>Completed and outstanding tickets by department</p></div></div><div id="department-progress" class="department-progress"></div></article></div>
+          <div class="chart-grid second-grid">
+            <article class="card">
+              <div class="card-heading">
+                <div>
+                  <h2>By department</h2>
+                  <p>Where feedback is coming from</p>
+                </div>
+              </div>
+              <div id="department-chart" class="department-chart"></div>
+            </article>
+            <article class="card">
+              <div class="card-heading">
+                <div>
+                  <h2>Recent feedback</h2>
+                  <p>Latest updates across the workspace</p>
+                </div>
+                <button class="text-button" id="view-all">View all →</button>
+              </div>
+              <div id="recent-issues"></div>
+            </article>
+          </div>
+        </section>
+        <section id="issues-page" class="page" hidden>
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">TRACK & FOLLOW UP</p>
+              <h1 id="issues-title">Issue list</h1>
+              <p class="subtitle">
+                View feedback details, handling progress and the complete
+                timeline.
+              </p>
+            </div>
+            <button id="export-issues" class="button">↓ Export CSV</button>
+          </div>
+          <div class="card">
+            <div class="filter-toolbar">
+              <label class="search-field"
+                ><span class="sr-only">Search issues</span
+                ><input
+                  id="issue-search"
+                  type="search"
+                  placeholder="Search ticket, user, title, type, department or content…" /></label
+              ><select id="issue-search-field" aria-label="Search field"><option value="all">All fields</option><option value="user">Reporter / user</option><option value="ticket">Ticket number</option><option value="title">Title</option><option value="type">Ticket type</option><option value="department">Department</option><option value="content">Ticket content</option></select
+              ><select id="issue-type-filter" aria-label="Filter by ticket type"><option value="All">All ticket types</option></select
+              ><select id="issue-status" aria-label="Filter by status"></select
+              ><select
+                id="issue-department"
+                aria-label="Filter by department"
+              ></select
+              ><select
+                id="issue-priority"
+                aria-label="Filter by priority"
+              ></select
+              ><button id="clear-filters" class="text-button">Reset</button>
+            </div>
+            <p class="helper ticket-search-help">Search includes closed tickets. Choose Closed to view closed tickets only.</p>
+            <div class="table-wrap">
+              <table role="table" aria-label="Issue list">
+                <thead>
+                  <tr>
+                    <th>Issue / Feedback</th>
+                    <th>Department / Process</th>
+                    <th>Reporter</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th>Updated</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="issue-rows" role="rowgroup"></tbody>
+              </table>
+            </div>
+            <div id="issue-pagination" class="table-footer"></div>
+          </div>
+        </section>
+        <section id="create-page" class="page" hidden>
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">CONTINUOUS IMPROVEMENT</p>
+              <h1>Submit feedback</h1>
+              <p class="subtitle">
+                Describe the MES issue and attach relevant evidence.
+              </p>
+            </div>
+          </div>
+          <div id="identity-notice" class="notice"></div>
+          <div class="form-layout">
+            <form id="feedback-form" class="card form-card">
+              <h2>Feedback information</h2>
+              <div class="form-grid">
+                <div class="reporter-field">
+                  <label for="reporter-select">Requester</label>
+                  <input id="reporter-select" readonly aria-readonly="true" data-user-content />
+                </div>
+                <div>
+                  <label for="department-select"
+                    >Department <span>*</span></label
+                  ><select id="department-select" required></select>
+                </div>
+                <div>
+                  <label for="issue-type-select">Issue type <span>*</span></label><select id="issue-type-select" required></select>
+                </div><div>
+                  <label for="process-input"
+                    >Process / Station <span>*</span></label
+                  ><input
+                    id="process-input"
+                    required
+                    maxlength="120"
+                    placeholder="e.g. Assembly line 2 / Station 04"
+                  />
+                </div>
+              </div>
+              <section class="occurrence-section" aria-labelledby="occurrence-title">
+                <div class="section-heading"><div><h3 id="occurrence-title">When did it happen?</h3><p class="helper">Required · add at least one incident moment or time range.</p></div></div>
+                <div id="occurrence-rows"></div>
+                <div class="occurrence-actions"><button type="button" id="add-moment" class="button small">＋ Add moment</button><button type="button" id="add-range" class="button small">＋ Add time range</button></div>
+              </section>
+              <div id="issue-reference-guide" class="issue-reference-guide"><strong>Include traceability references</strong><p>Add the MO number, serial number, process code, OP number, product or part number, machine/station and any related identifiers that apply.</p><p class="issue-reference-warning">Without relevant reference information, this ticket has no reference value for tracing or comparing the issue. If an identifier is unavailable or not applicable, say so and provide another way to identify the affected item.</p></div>
+              <label for="description-input">Feedback <span>*</span></label><textarea
+                id="description-input"
+                aria-describedby="issue-reference-guide"
+                rows="6"
+                required
+                minlength="1"
+                maxlength="5000"
+                placeholder="MO / Serial / Process code / OP number / Product / Station: … Describe the issue and attach a photo or video."
+              ></textarea
+              ><label for="attachment-input">Photo or video (required)</label
+              ><label class="upload-zone" for="attachment-input"
+                ><span>↥</span><strong>Choose files from your computer</strong
+                ><small
+                  >Up to 5 files · images/documents 10 MB · videos 200 MB · MP4, WEBM, MOV supported</small
+                ><input
+                  id="attachment-input"
+                  aria-required="true"
+                  type="file"
+                  multiple
+                  accept=".jpg,.jpeg,.png,.webp,.pdf,.txt,.csv,.xlsx,.mp4,.webm,.mov"
+              /></label>
+              <div class="capture-actions"><button id="open-camera" class="button" type="button">◉ Camera / record video</button><label class="button native-capture">Take photo<input id="native-photo" type="file" accept="image/*" capture="environment" /></label><label class="button native-capture">Record video<input id="native-video" type="file" accept="video/*" capture="environment" /></label></div><p class="helper">Camera access requires HTTPS and your permission. Record up to 60 seconds; maximum 200 MB.</p>
+              <div id="selected-files"></div>
+              <div class="form-footer">
+                <p>
+                  Feedback is visible to workspace members.<br />Do not attach
+                  passwords or sensitive production data.
+                </p>
+                <button
+                  class="button primary"
+                  id="submit-feedback"
+                  type="submit"
+                >
+                  Submit feedback →
+                </button>
+              </div>
+              <p id="create-status" role="status" aria-live="polite"></p>
+            </form>
+            <aside class="card guidance">
+              <span class="guidance-icon">i</span>
+              <h2>Make feedback actionable</h2>
+              <ol>
+                <li>
+                  <strong>Be specific</strong>
+                  <p>Identify the process and the exact symptom.</p>
+                </li>
+                <li>
+                  <strong>Include context</strong>
+                  <p>Add the time, error message and relevant screenshots.</p>
+                </li>
+                <li>
+                  <strong>Track the response</strong>
+                  <p>Open the issue timeline to follow the owner's updates.</p>
+                </li>
+              </ol>
+              <div class="notice">
+                Only the MES owner can change priorities, handling status and
+                assessments.
+              </div>
+            </aside>
+          </div>
+        </section>
+        <section id="detail-page" class="page" hidden>
+          <button id="back-to-issues" class="text-button">
+            ← Back to issue list
+          </button>
+          <div id="detail-heading" class="page-heading"></div>
+          <div class="detail-layout">
+            <div>
+              <article
+                id="detail-content"
+                class="card detail-content"
+              ></article>
+              <article class="card timeline-card">
+                <div class="card-heading">
+                  <div>
+                    <h2>Activity & handling timeline</h2>
+                    <p>Every recorded update in chronological order.</p>
+                  </div>
+                </div>
+                <div id="issue-timeline" class="timeline"></div>
+                <form id="comment-form" hidden>
+                  <label for="comment-input"
+                    >Comment / additional information</label
+                  ><textarea
+                    id="comment-input"
+                    rows="4"
+                    maxlength="3000"
+                    required
+                    placeholder="Add details, ask a question or share an update about this ticket."
+                  ></textarea>
+                  <div class="form-footer">
+                    <span></span
+                    ><button class="button primary" type="submit">
+                      Post comment
+                    </button>
+                  </div>
+                </form>
+                <p id="comment-status" role="status"></p>
+              </article>
+            </div>
+            <aside>
+              <form id="handling-form" class="card handling-card">
+                <h2>Issue handling</h2>
+                <label for="handling-status">Status</label
+                ><select id="handling-status"></select
+                ><label for="handling-priority">Priority</label
+                ><select id="handling-priority"></select
+                ><label for="handling-progress">Completion (%)</label><input id="handling-progress" type="number" min="0" max="100" step="1" /><label for="handling-assessment">Owner assessment</label
+                ><textarea
+                  id="handling-assessment"
+                  rows="4"
+                  maxlength="3000"
+                  placeholder="Analysis, root cause or conclusion"
+                ></textarea
+                ><label for="handling-note">Reason for this update</label
+                ><input
+                  id="handling-note"
+                  maxlength="500"
+                  placeholder="Optional context for the timeline"
+                /><button
+                  class="button primary full"
+                  type="submit"
+                  id="save-handling"
+                >
+                  Save changes
+                </button>
+                <p id="handling-status-message" role="status"></p>
+              </form>
+              <div class="card detail-meta" id="detail-meta"></div>
+              <div id="admin-issue-actions" class="card" hidden>
+                <h2>Owner controls</h2>
+                <button id="edit-issue" class="button full">
+                  Edit feedback</button
+                ><button id="delete-issue" class="button danger full">
+                  Delete issue
+                </button>
+              </div>
+            </aside>
+          </div>
+        </section>
+        <section id="profile-page" class="page" hidden>
+          <div class="page-heading"><div><p class="eyebrow">YOUR ACCOUNT</p><h1>My profile</h1><p class="subtitle">Manage your personal details and password.</p></div></div>
+          <div class="settings-grid"><article class="card"><h2>Personal information</h2>
+          <form id="profile-form" class="profile-form">
+            <label>Username<input id="profile-username" readonly autocomplete="username" /></label>
+            <label>Display name<input id="profile-name" required maxlength="80" autocomplete="name" /></label>
+            <label>Email<input id="profile-email" type="email" maxlength="160" autocomplete="email" /></label>
+            <label>Phone<input id="profile-phone" type="tel" maxlength="32" autocomplete="tel" /></label>
+            <label>Job title<input id="profile-title" maxlength="80" autocomplete="organization-title" /></label>
+            <button class="button primary">Save profile</button><p id="profile-status" role="status"></p>
+          </form></article><article class="card"><h2>Change password</h2>
+          <form id="password-form" class="profile-form">
+            <label>Current password<input id="current-password" type="password" required autocomplete="current-password" /></label>
+            <label>New password<input id="new-password" type="password" required minlength="10" autocomplete="new-password" /></label>
+            <label>Confirm password<input id="confirm-password" type="password" required minlength="10" autocomplete="new-password" /></label>
+            <p class="helper">Use at least 10 characters. Other sessions will be signed out.</p>
+            <button class="button primary">Update password</button><p id="password-status" role="status"></p>
+          </form></article><article class="card"><h2>Display settings</h2>
+          <form id="appearance-form" class="profile-form"><label class="checkbox"><input id="appearance-inherit" type="checkbox" checked />Use site defaults</label>
+            <label>Site font<select id="appearance-font"><option value="calibri">Calibri</option><option value="arial">Arial</option><option value="segoe">Segoe UI</option><option value="tahoma">Tahoma</option><option value="verdana">Verdana</option><option value="georgia">Georgia</option><option value="times">Times New Roman</option><option value="courier">Courier New</option></select></label>
+            <label>Base text size<select id="appearance-size"><option value="12">12 px</option><option value="14" selected>14 px</option><option value="16">16 px</option><option value="18">18 px</option><option value="20">20 px</option></select></label>
+            <p class="helper">Headings and labels scale proportionally. Your choices are saved to your account and applied when you sign in on another device. Fonts unavailable on your device use a fallback.</p>
+            <div class="account-actions"><button id="appearance-save" class="button primary">Save display settings</button><button id="appearance-reset" type="button" class="button">Use defaults</button></div><p id="appearance-status" role="status"></p>
+          </form></article></div>
+        </section>
+        <section id="settings-page" class="page" hidden>
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">OWNER CONTROLS</p>
+              <h1>Administration</h1>
+              <p class="subtitle">
+                Maintain the directories used by feedback submitters.
+              </p>
+            </div>
+          </div>
+          <div class="settings-grid">
+            <article class="card" hidden>
+              <h2>Team Leaders</h2>
+              <form id="leader-form" class="inline-form">
+                <input
+                  id="leader-name"
+                  required
+                  maxlength="80"
+                  placeholder="Team Leader name"
+                  aria-label="Team Leader name"
+                /><button class="button primary">Add</button>
+              </form>
+              <div id="leader-list"></div>
+            </article>
+            <article class="card">
+              <h2>Departments</h2>
+              <form id="department-form" class="inline-form">
+                <input
+                  id="department-name"
+                  required
+                  maxlength="80"
+                  placeholder="Department name"
+                  aria-label="Department name"
+                /><button class="button primary">Add</button>
+              </form>
+              <div id="department-list"></div>
+            </article>
+          </div>
+          <div class="publishing-grid">
+            <article class="card"><p class="eyebrow">PUBLISH / NOTICES</p><h2>Notice board management</h2><form id="announcement-form" class="profile-form"><input id="announcement-id" type="hidden" /><label>Title<input id="announcement-title" maxlength="140" required /></label><label>Message<textarea id="announcement-body" rows="4" maxlength="3000" required></textarea></label><label>Notice images / videos<input id="announcement-files" type="file" multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" /></label><p class="helper">Up to 5 attachments per notice · images 10 MB · videos 200 MB.</p><div id="announcement-media-list" class="notice-media-editor"></div><progress id="announcement-upload-progress" max="100" value="0" hidden></progress><label class="checkbox"><input id="announcement-pinned" type="checkbox" />Pin to top</label><label class="checkbox"><input id="announcement-active" type="checkbox" checked />Published</label><div class="account-actions"><button class="button primary">Publish notice</button><button type="button" id="announcement-cancel" class="button">Clear</button></div></form><div id="announcement-admin" class="admin-items"></div></article>
+            <article class="card"><p class="eyebrow">PUBLISH / VIDEO</p><h2>Workspace video playlist</h2><form id="video-publish-form" class="profile-form"><label>Video title<input id="video-publish-title" required maxlength="140" /></label><label>Video file<input id="video-publish-file" type="file" accept="video/mp4,video/webm,video/quicktime" required /></label><p class="helper">MP4, WEBM or MOV · maximum 200 MB each, 20 videos. MP4 H.264 provides the widest browser support. Playback starts muted.</p><progress id="video-upload-progress" max="100" value="0" hidden></progress><button class="button primary">Upload video</button></form><div id="video-admin" class="admin-items"></div></article>
+            <article class="card"><p class="eyebrow">CONFIGURE / CLASSIFICATION</p><h2>Issue types</h2><form id="issue-type-form" class="inline-form"><input id="new-issue-type" maxlength="80" required placeholder="Issue type name" aria-label="Issue type name" /><button class="button primary">Add</button></form><div id="issue-type-admin" class="admin-items"></div></article>
+          </div><p id="workspace-admin-status" role="status"></p>
+          <article class="card users-card">
+            <div class="card-heading">
+              <div>
+                <h2>User directory</h2>
+                <p>
+                  Create accounts and share a private activation link. Users set their own password and personal details.
+                </p>
+              </div>
+            </div>
+            <form id="user-form" class="form-grid user-form">
+              <div>
+                <label for="new-username">Username</label
+                ><input
+                  id="new-username"
+                  required
+                  maxlength="64"
+                  pattern="[a-z0-9][a-z0-9._-]*"
+                  placeholder="e.g. phtuan"
+                />
+              </div>
+              <div>
+                <label for="new-display-name">Display name</label
+                ><input
+                  id="new-display-name"
+                  maxlength="80"
+                  placeholder="e.g. Pham Hoang Tuan"
+                />
+              </div>
+              <div class="user-submit">
+                <button class="button primary">Create user</button>
+              </div>
+            </form>
+            <div id="activation-result" class="activation-result" hidden><h3>Account activation</h3><p class="helper">Share this link privately with the user. It expires in 72 hours and can only be used once. Creating another link signs out existing sessions.</p><label>Private activation link<input id="activation-link" readonly data-user-content /></label><button id="copy-activation" type="button" class="button">Copy activation link</button></div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Display name</th>
+                    <th>Username</th>
+                    <th>State</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="user-rows"></tbody>
+              </table>
+            </div>
+          </article>
+          <div class="settings-grid" hidden>
+            <article class="card">
+              <h2>Submission policy</h2>
+              <label class="checkbox"
+                ><input id="require-windows" type="checkbox" checked /> Require
+                a signed Windows profile verification before submission</label
+              >
+              <p class="helper">
+                A browser cannot inspect C:\Users. The local agent signs a
+                challenge only when the selected username matches a profile
+                folder.
+              </p>
+              <button id="save-policy" class="button primary">
+                Save policy
+              </button>
+            </article>
+            <article class="card">
+              <h2>Registered Windows devices</h2>
+              <form id="device-form" class="inline-form">
+                <input
+                  id="device-label"
+                  maxlength="80"
+                  required
+                  placeholder="Device label"
+                  aria-label="Device label"
+                /><button class="button primary">Register device</button>
+              </form>
+              <p class="helper">
+                A one-time device key is issued for the local agent. Treat it as
+                a credential; never paste it in chat.
+              </p>
+              <div id="device-result" class="device-result" hidden></div>
+              <div id="device-list"></div>
+            </article>
+          </div>
+          <p id="settings-status" role="status"></p>
+        </section>
+      </main>
+      <footer class="app-footer">
+        <span>[TH] P+F MES</span
+        ><span id="data-scope"
+          >Workspace access is controlled by the owner.</span
+        >
+      </footer>
+    </div>
+    <dialog id="capture-dialog" aria-labelledby="capture-title"><button id="capture-close" class="dialog-close" aria-label="Close">×</button><p class="eyebrow">EVIDENCE / CAPTURE</p><h2 id="capture-title">Capture evidence</h2><video id="capture-preview" autoplay muted playsinline></video><p id="capture-status" role="status"></p><div class="account-actions"><button id="capture-photo" class="button" type="button">Take photo</button><button id="capture-record" class="button primary" type="button">Start recording</button><button id="capture-stop" class="button danger" type="button" disabled>Stop recording</button></div></dialog>
+    <dialog id="user-admin-dialog" aria-labelledby="user-admin-title">
+      <button class="dialog-close" data-close="user-admin-dialog" aria-label="Close">×</button>
+      <p class="eyebrow">ACCOUNT MANAGEMENT</p><h2 id="user-admin-title">Edit account</h2>
+      <p class="helper">Manage identity, profile and access. Existing feedback is preserved.</p>
+      <form id="user-admin-form" class="profile-form">
+        <label>Username<input id="admin-username" required maxlength="64" pattern="[a-z0-9][a-z0-9._-]*" /></label>
+        <label>Display name<input id="admin-name" required maxlength="80" /></label>
+        <label>Account role<select id="admin-role"><option value="user">User</option><option value="admin">Admin</option></select></label>
+        <label>Email<input id="admin-email" type="email" maxlength="160" /></label>
+        <label>Phone<input id="admin-phone" maxlength="32" /></label>
+        <label>Job title<input id="admin-title" maxlength="80" /></label>
+        <button class="button primary">Save changes</button>
+      </form>
+      <div class="account-actions"><button id="admin-reset" class="button" type="button">New activation link</button><button id="admin-toggle" class="button" type="button">Deactivate</button><button id="admin-delete" class="button danger" type="button">Delete account</button></div>
+      <div id="admin-activation" class="activation-result" hidden><label>Private activation link<input id="admin-activation-link" readonly /></label><button id="admin-copy" class="button" type="button">Copy link</button><p class="helper">Valid for 72 hours, single use. Previous links, password and sessions are revoked.</p></div>
+      <p id="user-admin-status" role="status"></p>
+    </dialog>
+    <dialog id="account-dialog" aria-labelledby="account-title">
+      <button
+        class="dialog-close"
+        data-close="account-dialog"
+        aria-label="Close"
+      >
+        ×
+      </button>
+      <p class="eyebrow">[TH] P+F MES ACCESS</p>
+      <h2 id="account-title">Sign in to [TH] P+F MES</h2>
+      <div class="auth-tabs">
+        <button id="user-login-tab" aria-pressed="true">User</button
+        ><button id="admin-login-tab" aria-pressed="false">Owner</button>
+      </div>
+      <form id="password-login-form" class="profile-form" method="post" autocomplete="on">
+        <label>Username<input id="account-username" name="username" required maxlength="64" autocomplete="username" autocapitalize="none" spellcheck="false" /></label>
+        <label>Password<input id="account-password" name="password" type="password" required autocomplete="current-password" /></label>
+        <label class="checkbox"><input id="account-remember" name="remember" type="checkbox" />Remember me for 30 days</label>
+        <button class="button primary full">Sign in</button>
+        <p class="helper">Accounts are provided by the administrator. First time or forgot your password? Ask for an activation link.</p>
+        <button id="show-activation" type="button" class="text-button">Activate account</button>
+      </form>
+      <form id="activation-form" class="profile-form" hidden>
+        <p class="helper">Use the username and one-time code provided by your administrator. Choose your own password.</p>
+        <label>Username<input id="activate-username" required maxlength="64" autocomplete="username" autocapitalize="none" spellcheck="false" /></label>
+        <label>Activation code<input id="activate-code" required pattern="[a-f0-9]{64}" autocomplete="off" data-user-content /></label>
+        <label>New password<input id="activate-password" type="password" required minlength="10" autocomplete="new-password" /></label>
+        <label>Confirm password<input id="activate-confirm" type="password" required minlength="10" autocomplete="new-password" /></label>
+        <p class="helper">Use at least 10 characters and no more than 72 UTF-8 bytes.</p>
+        <button class="button primary full">Set password and sign in</button>
+        <button id="back-to-login" type="button" class="text-button">Back to sign in</button>
+      </form>
+      <form id="windows-login-form" hidden>
+        <label for="login-user">Your display name</label
+        ><select id="login-user" required></select>
+        <p class="helper">
+          With Windows verification enabled, the installed agent checks C:\Users
+          and signs a short-lived challenge. A typed username alone is not
+          proof.
+        </p>
+        <button class="button primary full">Verify this Windows computer</button
+        ><a
+          class="text-button agent-download"
+          href="/downloads/th-mes-agent.zip"
+          download
+          >Download Windows agent & setup guide ↓</a
+        >
+      </form>
+      <div id="admin-login-form" hidden>
+        <p class="helper">
+          Owner: sign in with username hpham above, or use the registered Google account.
+        </p>
+        <button
+          id="owner-google-login"
+          class="button primary full"
+          type="button"
+        >
+          Continue with Google
+        </button>
+      </div>
+      <div id="signed-in-account" hidden>
+        <p id="signed-in-summary" data-user-content></p>
+        <button id="start-tester" class="button full" hidden>Test as user (Tester)</button>
+        <button id="sign-out" class="button full">Sign out</button>
+      </div>
+      <p id="account-status" role="status" aria-live="polite"></p>
+      <button id="reset-session" class="button full" type="button">Reset sign-in session</button>
+    </dialog>
+    <dialog id="edit-dialog" aria-labelledby="edit-title">
+      <button class="dialog-close" data-close="edit-dialog" aria-label="Close">
+        ×
+      </button>
+      <h2 id="edit-title">Edit feedback</h2>
+      <form id="edit-form">
+        <div class="edit-fields-grid"><label>Requester<select id="edit-reporter"></select></label><label>Department<select id="edit-department"></select></label><label>Issue type<select id="edit-type"></select></label><label>Status<select id="edit-ticket-status"></select></label><label>Priority<select id="edit-priority"></select></label><label>Ticket progress<input type="number" id="edit-progress" min="0" max="100" required /></label></div>
+        <label>Assessment<textarea id="edit-assessment" maxlength="3000" rows="2"></textarea></label>
+        <fieldset><legend>Incident times</legend><div id="edit-occurrences"></div><button type="button" id="edit-add-moment" class="button">Add moment</button><button type="button" id="edit-add-range" class="button">Add time range</button></fieldset>
+        <label for="edit-subject">Title</label
+        ><input id="edit-subject" maxlength="160" required /><label
+          for="edit-process"
+          >Process</label
+        ><input id="edit-process" maxlength="120" required /><label
+          for="edit-description"
+          >Description</label
+        ><textarea
+          id="edit-description"
+          maxlength="5000"
+          minlength="1"
+          required
+          rows="6"
+        ></textarea
+        ><section class="edit-evidence"><h3>Attachments</h3><p class="helper">Add, rename, replace or remove attachments. Changes apply when you save. Removed originals remain in history and backups.</p><div id="edit-attachments"></div><label class="button">Add attachments<input id="edit-attachment-input" type="file" multiple accept=".jpg,.jpeg,.png,.webp,.mp4,.webm,.mov,.pdf,.txt,.csv,.xlsx" /></label></section><button type="submit" class="button primary full">Save feedback changes</button>
+        <p id="edit-status" role="status"></p>
+      </form>
+    </dialog>
+    <dialog id="image-viewer" class="image-viewer" aria-label="Image viewer">
+      <div class="image-toolbar"><strong id="image-name" data-user-content></strong><div><a id="image-download" class="button small" download>Download</a><button id="image-fit" class="button small">Fit</button><button id="image-zoom" class="button small">100%</button><button id="image-close" class="button small" aria-label="Close image">✕</button></div></div>
+      <div id="image-stage" class="image-stage"><img id="image-full" alt="" /></div>
+    </dialog>
+    <div id="toast" class="toast" role="status" hidden></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
