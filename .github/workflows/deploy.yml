@@ -1,7 +1,7 @@
 name: Deploy managed application
 on:
   workflow_run:
-    workflows: ['Build, test and package']
+    workflows: [Build, test and package]
     types: [completed]
     branches: [main]
   workflow_dispatch:
@@ -37,7 +37,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Fetch pinned TH-Server deployment implementation
-        run: curl --fail --location --retry 3 --max-time 60 https://raw.githubusercontent.com/TuanPham0411/TH-RPI.Server/4fb561cc8b2f08108ca4cb0d833e727397d8df7f/deploy/application.py -o "$RUNNER_TEMP/th-platform-application.py"
+        run: curl --fail --location --retry 3 --max-time 60 https://raw.githubusercontent.com/TuanPham0411/TH-RPI.Server/dbc5cfff14d73f46fb70018a22433faa516efd57/deploy/application.py -o "$RUNNER_TEMP/th-platform-application.py"
       - name: Deploy with Drive-first storage
         env:
           TH_APPLICATION: mes-ticket
