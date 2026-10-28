@@ -1,5 +1,6 @@
 services:
   mes:
+    stop_grace_period: 6m
     environment:
       TH_STORAGE_MODE: drive-first
       TH_RELEASE: ${IMAGE_TAG:?Immutable release required}

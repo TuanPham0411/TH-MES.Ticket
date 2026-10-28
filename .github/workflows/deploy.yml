@@ -37,7 +37,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Fetch pinned TH-Server deployment implementation
-        run: curl --fail --location --retry 3 --max-time 60 https://raw.githubusercontent.com/TuanPham0411/TH-RPI.Server/e2f0ab04074f6e2f31ec14a4387e579a1b260d18/deploy/application.py -o "$RUNNER_TEMP/th-platform-application.py"
+        run: curl --fail --location --retry 3 --max-time 60 https://raw.githubusercontent.com/TuanPham0411/TH-RPI.Server/ddd3ac5c7934ea7c55fec3768d8fc65cc5201cf5/deploy/application.py -o "$RUNNER_TEMP/th-platform-application.py"
       - name: Deploy with Drive-first storage
         env:
           TH_APPLICATION: mes-ticket
