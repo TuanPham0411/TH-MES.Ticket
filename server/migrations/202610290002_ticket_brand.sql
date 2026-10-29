@@ -8,8 +8,8 @@ begin
   where n.nspname='public' and p.proname like 'mes_%' and p.prokind='f'
  loop
   definition:=pg_get_functiondef(entry.oid);
-  if strpos(definition,'''MES Owner''')>0 then
-   execute replace(definition,'''MES Owner''','''TH.Ticket Owner''');
+  if strpos(definition,'''MES Owner''')>0 or strpos(definition,'mes.th.io.vn')>0 then
+   execute replace(replace(definition,'''MES Owner''','''TH.Ticket Owner'''),'mes.th.io.vn','ticket.th.io.vn');
   end if;
  end loop;
 end $$;
