@@ -23,7 +23,7 @@ jobs:
           trap 'docker logout ghcr.io >/dev/null 2>&1 || true; rm -rf "$DOCKER_CONFIG" "$WORK"' EXIT
           printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
           for file in transition.py ledger-transition.mjs test_transition.py; do
-            curl -fsSL --retry 3 https://raw.githubusercontent.com/TuanPham0411/TH-RPI.Server/7f7557a7bbbf034457ab8d782f7b6d9f2f1f817b/deploy/ticket-transition/$file -o "$WORK/$file"
+            curl -fsSL --retry 3 https://raw.githubusercontent.com/TuanPham0411/TH-RPI.Server/214c83ec6e9f440f6937af90a366ae7920804147/deploy/ticket-transition/$file -o "$WORK/$file"
           done
           cd "$WORK"
           python3 -m unittest -v test_transition.py
