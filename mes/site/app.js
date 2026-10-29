@@ -110,17 +110,17 @@ function toast(message) {
 function errorMessage(e) {
   const c = String(e?.code || "");
   if (["invalid-credentials", "rate-limited", "password-policy", "invalid-incident-time", "P0099", "P0409"].includes(c)) return e.message;
-  if (c === "owner-required") return "This Google account is not accepted as the MES owner. Use eric.scorp93@gmail.com. Reset sign-in session to switch accounts.";
-  if (c === "backend-not-ready") return "Account service update required. Deploy the MES accounts SQL installer and the matching API.";
+  if (c === "owner-required") return "This Google account is not accepted as the TH.Ticket owner. Use eric.scorp93@gmail.com. Reset sign-in session to switch accounts.";
+  if (c === "backend-not-ready") return "Account service update required. Deploy the TH.Ticket accounts SQL installer and the matching API.";
   if (c.includes("unauthenticated"))
-    return "Sign in to the MES workspace first.";
+    return "Sign in to the TH.Ticket workspace first.";
   if (c.includes("permission-denied")) return "This action is not allowed. Your account may be inactive or its session may have expired. Sign in again or contact the administrator.";
   if (
     c.includes("unavailable") ||
     c.includes("not-found") ||
     c.includes("internal")
   )
-    return "MES backend is not reachable or not deployed yet. Ask the owner to deploy the Supabase MES API and database migration.";
+    return "TH.Ticket backend is not reachable or not deployed yet. Ask the owner to deploy the Supabase TH.Ticket API and database migration.";
   if (c.includes("popup-closed")) return "Google sign-in was cancelled.";
   if (c.includes("unauthorized-domain"))
     return "Add this site domain to Supabase Authentication redirect URLs.";
@@ -178,7 +178,7 @@ function openAccount(owner = false) {
   $("signed-in-account").hidden = !state.user;
   showStatus("account-status", "");
   $("signed-in-summary").textContent = state.user
-    ? `${state.user.displayName} · ${state.isOwner ? "MES owner" : state.user.username}`
+    ? `${state.user.displayName} · ${state.isOwner ? "TH.Ticket owner" : state.user.username}`
     : "";
   $("account-dialog").showModal();
 }
@@ -189,7 +189,7 @@ function requireMember() {
 }
 function ownerOnly() {
   if (!state.isOwner) {
-    toast("Only the MES owner can change this.");
+    toast("Only the TH.Ticket owner can change this.");
     return false;
   }
   return true;
@@ -872,7 +872,7 @@ function updateIdentity() {
   $("account-role").textContent = state.preview
     ? "Preview session"
     : state.isOwner
-      ? "MES owner"
+      ? "TH.Ticket owner"
       : state.user
         ? state.isAdmin ? "Administrator" : "Verified workspace user"
         : "Read-only access";
@@ -1570,7 +1570,7 @@ async function handleAuth(user) {
     if(state.isOwner&&new URLSearchParams(location.search).get("drive")==="connected"){history.replaceState(null,"",location.pathname);navigate("settings");toast("Google Drive connected.");}
     if ($("account-dialog").open && $("activation-form").hidden) $("account-dialog").close();
     toast(
-      state.isOwner ? "Signed in as MES owner." : state.user.isTester ? "Tester mode. Feedback is saved to the live workspace." : "Signed in successfully.",
+      state.isOwner ? "Signed in as TH.Ticket owner." : state.user.isTester ? "Tester mode. Feedback is saved to the live workspace." : "Signed in successfully.",
     );
   } catch (e) {
     if (generation === sessionGeneration) {

@@ -23,7 +23,7 @@ export function driveRouter(pool){
   await owner(req);const credentials=await exchangeDriveCode(req.query.code,value.verifier);if(!credentials.refresh_token)throw Object.assign(new Error('Google did not provide offline access. Connect again and approve access.'),{status:400,expose:true});
   const response=await fetch('https://openidconnect.googleapis.com/v1/userinfo',{headers:{Authorization:'Bearer '+credentials.access_token},signal:AbortSignal.timeout(20000)});const identity=await response.json();if(!response.ok||!identity.email_verified)throw new Error('Verified Google Drive account required');
   const previous=await driveCredentials();if(previous&&previous.email!==identity.email&&(await pool.query('select 1 from public.mes_cloud_files limit 1')).rowCount)return res.status(409).send('Existing cloud files belong to another Drive account. Copy them back locally before changing accounts.');
-  let root=previous?.email===identity.email?{id:previous.folderId}:await createDriveFolder('TH MES',null,credentials.access_token);
+  let root=previous?.email===identity.email?{id:previous.folderId}:await createDriveFolder('TH.Ticket',null,credentials.access_token);
   const media=previous?.email===identity.email?{id:previous.mediaFolder}:await createDriveFolder('Media',root.id,credentials.access_token);
   const backups=previous?.email===identity.email?{id:previous.backupFolder}:await createDriveFolder('Backups',root.id,credentials.access_token);
   await saveDriveCredentials({refreshToken:credentials.refresh_token,email:identity.email,folderId:root.id,mediaFolder:media.id,backupFolder:backups.id,connectedAt:Date.now()});res.redirect('/?drive=connected');

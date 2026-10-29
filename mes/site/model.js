@@ -144,7 +144,7 @@ export function makeDemo() {
     { id: "dep-c", name: "Sample Packaging", active: true },
   ];
   const seed = [
-    ["MES response delayed at station", "In progress", "High", 0, 0],
+    ["TH.Ticket response delayed at station", "In progress", "High", 0, 0],
     ["Production order not displayed", "Acknowledged", "Medium", 1, 1],
     ["Incorrect quantity in report", "Resolved", "Medium", 0, 2],
     ["Scanner connection interrupted", "New", "Critical", 1, 0],

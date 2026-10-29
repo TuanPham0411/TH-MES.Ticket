@@ -28,10 +28,10 @@ jobs:
           REGISTRY_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
           REGISTRY_USER: '${{ github.actor }}'
           TH_APPLICATION: mes-ticket
-          TH_REPOSITORY: TH-MES.Ticket
+          TH_REPOSITORY: '${{ github.event.repository.name }}'
         run: |
           set -euo pipefail
-          test "$SELECTED_RUNNER" = th-mes.ticket
+          case "$SELECTED_RUNNER" in th-mes|th-mes.ticket) ;; *) exit 1 ;; esac
           umask 077
           RELEASE_SOURCE="$(mktemp -d "$RUNNER_TEMP/th-release.XXXXXX")"
           export RELEASE_SOURCE
