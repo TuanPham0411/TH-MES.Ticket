@@ -23,3 +23,7 @@ jobs:
                   parts=process.read_bytes().split(b'\\0')
                   print(json.dumps({'lock':record,'program':pathlib.Path(parts[0].decode()).name,'entry':pathlib.Path(parts[1].decode()).name if len(parts)>1 else ''}))
           PY
+          for url in https://ticket.th.io.vn/api/health https://ticket.th.io.vn/ https://th.io.vn/api/health https://ai.th.io.vn/api/ready; do
+            status="$(curl --silent --show-error --max-time 30 --output /dev/null --write-out '%{http_code}' "$url")"
+            printf '%s %s\\n' "$url" "$status"
+          done
