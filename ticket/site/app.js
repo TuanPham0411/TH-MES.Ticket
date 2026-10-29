@@ -681,7 +681,7 @@ function renderSettings() {
           "text-button",
         );
       edit.onclick = async () => {
-        const name = window.prompt("Update name", item.name);
+        const name = window.prompt(t("Update name"), item.name);
         if (!name?.trim()) return;
         await run("settings-status", edit, async () => {
           if (state.preview) item.name = name.trim();
@@ -818,7 +818,7 @@ $("admin-toggle").onclick = () => run("user-admin-status",$("admin-toggle"),asyn
   editingUser.active=!editingUser.active; await refreshAccounts(); $("user-admin-dialog").close();
 });
 $("admin-delete").onclick = () => {
-  if (!confirm(`Delete account ${editingUser.username}? This cannot be undone. Historical feedback will be preserved.`)) return;
+  if (!confirm(t("Delete account")+` ${editingUser.username}? `+t("This cannot be undone. Historical feedback will be preserved."))) return;
   run("user-admin-status",$("admin-delete"),async () => {
     if (!state.preview) await callable("manageUser",{operation:"delete",uid:editingUser.id});
     else state.users=state.users.filter(u=>u.id!==editingUser.id);

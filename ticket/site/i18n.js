@@ -214,8 +214,12 @@ Object.assign(vi, {"My dashboard": "Dashboard của tôi", "My tickets": "Ticket
 Object.assign(vi, {"Sign in to connect":"Đăng nhập để kết nối"});
 let language = typeof localStorage !== 'undefined' && localStorage.getItem('th-ticket-language') === 'en' ? 'en' : 'vi';
 export const getLanguage = () => language;
-export function t(value) {
-  if (language === 'en' || typeof value !== 'string') return value;
+export function translate(value, selected = language) {
+  if (typeof value !== 'string') return value;
+  if (selected === 'en') {
+    const source=Object.keys(vi).find(key=>vi[key]===value);
+    return source || value;
+  }
   const normalized = value.replace(/\s+/g, ' ').trim();
   if (vi[normalized]) return vi[normalized];
   let m = normalized.match(/^(\d+) issue\(s\) · Page (\d+) of (\d+)$/);
@@ -228,8 +232,9 @@ export function t(value) {
   if (m) return `Đã lưu phản hồi. Đang tải tệp ${m[1]}/${m[2]}…`;
   return value;
 }
+export const t = value => translate(value);
 export function initializeLanguage(onChange) {
-  const records = new WeakMap();
+  const records = new WeakMap(), attributes = new WeakMap();
   function apply() {
     document.documentElement.lang = language;
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -237,7 +242,7 @@ export function initializeLanguage(onChange) {
     while ((node = walker.nextNode())) {
       if (node.parentElement?.closest('[data-user-content],script,style,textarea,#language-select')) continue;
       const previous = records.get(node);
-      const source = previous && node.nodeValue === previous.rendered ? previous.source : node.nodeValue;
+      const source = previous && node.nodeValue === previous.rendered ? previous.source : translate(node.nodeValue, 'en');
       const normalized = source.replace(/\s+/g, ' ').trim();
       const translated = t(normalized);
       const rendered = translated === normalized ? source : source.replace(/\S[\s\S]*\S|\S/, () => translated);
@@ -248,20 +253,22 @@ export function initializeLanguage(onChange) {
       if (element.closest('[data-user-content]')) continue;
       for (const attr of ['placeholder','aria-label','title']) {
         if (!element.hasAttribute(attr)) continue;
-        const key = `data-i18n-${attr}`;
-        if (!element.hasAttribute(key)) element.setAttribute(key, element.getAttribute(attr));
-        element.setAttribute(attr, t(element.getAttribute(key)));
+        const saved=attributes.get(element)||{}, current=element.getAttribute(attr), previous=saved[attr];
+        const source=previous&&current===previous.rendered?previous.source:translate(current,'en');
+        const rendered=t(source);
+        if(current!==rendered)element.setAttribute(attr,rendered);
+        saved[attr]={source,rendered};attributes.set(element,saved);
       }
     }
   }
   let scheduled = false;
   const observer = new MutationObserver(() => {
     if (scheduled) return;
-    scheduled = true; queueMicrotask(() => { scheduled = false; observer.disconnect(); apply(); observer.observe(document.body, { subtree:true, childList:true, characterData:true }); });
+    scheduled = true; queueMicrotask(() => { scheduled = false; observer.disconnect(); apply(); observer.observe(document.body, { subtree:true, childList:true, characterData:true, attributes:true, attributeFilter:['placeholder','aria-label','title'] }); });
   });
   const select = document.getElementById('language-select'); select.value = language;
   select.onchange = () => { language = select.value === 'en' ? 'en' : 'vi'; localStorage.setItem('th-ticket-language', language); onChange(); apply(); };
-  apply(); observer.observe(document.body, { subtree:true, childList:true, characterData:true });
+  apply(); observer.observe(document.body, { subtree:true, childList:true, characterData:true, attributes:true, attributeFilter:['placeholder','aria-label','title'] });
 }
 
 Object.assign(vi, {'Display settings':'Cài đặt hiển thị','Site font':'Font chữ toàn trang','Base text size':'Cỡ chữ cơ bản','Save display settings':'Lưu cài đặt hiển thị','Use defaults':'Dùng mặc định','Appearance saved. This applies only to your account.':'Đã lưu cài đặt hiển thị cho tài khoản của bạn.','Could not save appearance settings. Please try again.':'Chưa lưu được cài đặt hiển thị. Vui lòng thử lại.','Could not load appearance settings. Press Refresh to try again.':'Chưa tải được cài đặt hiển thị. Bấm Refresh để thử lại.','Headings and labels scale proportionally. Your choices are saved to your account and applied when you sign in on another device. Fonts unavailable on your device use a fallback.':'Tiêu đề và nhãn thay đổi cỡ chữ theo tỉ lệ. Cài đặt được lưu theo tài khoản và áp dụng khi đăng nhập trên thiết bị khác. Font không có trên thiết bị sẽ dùng font thay thế.'});
@@ -328,3 +335,42 @@ Object.assign(vi,{
 });
 
 Object.assign(vi,{"Browser notifications are blocked. Allow them in your browser site settings.":"Thông báo trình duyệt đang bị chặn. Hãy cho phép trong cài đặt trang web của trình duyệt."});
+
+Object.assign(vi, {
+'Delete account':'Xóa tài khoản','This cannot be undone. Historical feedback will be preserved.':'Không thể hoàn tác. Các phản hồi trước đây vẫn được giữ lại.','Add files':'Thêm tệp','Add moment':'Thêm thời điểm','Add time range':'Thêm khoảng thời gian','Assessment':'Đánh giá',
+'CONTENT / TABS':'NỘI DUNG / CÁC TAB','Cancel':'Hủy','Delete':'Xóa','Preview':'Xem trước','Refresh':'Làm mới','Loading…':'Đang tải…','Uploading…':'Đang tải lên…',
+'Choose any color. Personal colors apply only to your account.':'Chọn màu bất kỳ. Màu cá nhân chỉ áp dụng cho tài khoản của bạn.',
+'Choose personal color':'Chọn màu cá nhân','Save personal':'Lưu màu cá nhân','Use default color':'Dùng màu mặc định',
+'Clear interrupted Drive operation':'Xóa trạng thái tác vụ Drive bị gián đoạn','GOOGLE DRIVE':'GOOGLE DRIVE','Resolved → Closed':'Đã xử lý → Đã đóng',
+'SECURITY / ACCESS':'BẢO MẬT / TRUY CẬP','STORAGE / BACKUP':'LƯU TRỮ / SAO LƯU','WORKSPACE / CONTENT':'KHÔNG GIAN LÀM VIỆC / NỘI DUNG','Width':'Chiều rộng','● LIVE':'● TRỰC TUYẾN',
+'Videos: maximum 200 MB; other files: 10 MB. Uploads use the active SD, USB or Google Drive storage.':'Video tối đa 200 MB; tệp khác tối đa 10 MB. Tệp được lưu vào thẻ SD, USB hoặc Google Drive đang được sử dụng.',
+'Disable Windows verification? Anyone who selects an active display name will then be able to sign in as that managed user.':'Tắt xác minh Windows? Khi đó bất kỳ ai chọn tên đang hoạt động cũng có thể đăng nhập vào tài khoản được quản lý đó.',
+'Revoke this device? Its Windows verification will no longer be accepted.':'Thu hồi thiết bị này? Xác minh Windows của thiết bị sẽ không còn được chấp nhận.',
+'Account service update required':'Cần cập nhật dịch vụ tài khoản','Activation link copied.':'Đã sao chép liên kết kích hoạt.',
+'Admin preview enabled. No real privileges are granted.':'Đã bật xem trước quản trị. Không cấp quyền thực tế.',
+'Administration sections':'Các mục quản trị','Administrator updated feedback and attachments (preview).':'Quản trị viên đã cập nhật phản hồi và tệp đính kèm (xem trước).',
+'Align justify':'Căn đều hai bên','Attachment download failed':'Tải tệp đính kèm thất bại','Calibri (default)':'Calibri (mặc định)',
+'Camera is not available. Use Take photo or Record video.':'Không thể mở camera. Hãy dùng Chụp ảnh hoặc Quay video.',
+'Check the values and try again.':'Kiểm tra các giá trị rồi thử lại.','Could not save changes.':'Không thể lưu thay đổi.',
+'Device credentials are not generated in preview. Configure and deploy the backend first.':'Không tạo thông tin xác thực thiết bị trong chế độ xem trước. Hãy cấu hình và triển khai máy chủ trước.',
+'Device registered.':'Đã đăng ký thiết bị.','Device registered. Download this key now; it will not be shown again.':'Đã đăng ký thiết bị. Hãy tải khóa ngay; khóa sẽ không được hiển thị lại.',
+'Directory entry added.':'Đã thêm mục danh bạ.','Do not include credentials in a link.':'Không đưa thông tin xác thực vào liên kết.',
+'Download device.json':'Tải device.json','Drive request failed':'Yêu cầu Drive thất bại','Enter a valid drive path.':'Nhập đường dẫn ổ đĩa hợp lệ.',
+'Enter a valid web address or drive path.':'Nhập địa chỉ web hoặc đường dẫn ổ đĩa hợp lệ.','Feedback updated.':'Đã cập nhật phản hồi.',
+'Google sign-in was cancelled.':'Đã hủy đăng nhập Google.','Handling updated.':'Đã cập nhật quá trình xử lý.','Highlight color':'Màu nền chữ',
+'Install the device configuration on the trusted Windows computer. Do not share it.':'Cài cấu hình thiết bị trên máy tính Windows tin cậy. Không chia sẻ cấu hình.',
+'Invalid notification response':'Phản hồi thông báo không hợp lệ','Issue deleted.':'Đã xóa ticket.','Issue details':'Chi tiết ticket',
+'Key downloaded. Keep device.json protected and close this page after installation.':'Đã tải khóa. Bảo vệ tệp device.json và đóng trang này sau khi cài đặt.',
+'Maximum 10 files per widget.':'Tối đa 10 tệp cho mỗi khối nội dung.','No preview image':'Chưa có ảnh xem trước',
+'Only HTTP(S) web addresses and copyable drive paths are supported.':'Chỉ hỗ trợ địa chỉ web HTTP(S) và đường dẫn ổ đĩa có thể sao chép.',
+'Preview feedback created. No production data was submitted.':'Đã tạo phản hồi xem trước. Không gửi dữ liệu thực tế.',
+'Preview handling updated.':'Đã cập nhật xử lý trong bản xem trước.','Request failed':'Yêu cầu thất bại','Return to user preview':'Quay lại xem trước người dùng',
+'Select a document, image or video widget for uploaded files.':'Chọn khối tài liệu, ảnh hoặc video để tải tệp lên.',
+'Select your display name.':'Chọn tên hiển thị của bạn.','Sign in to save personal colors.':'Đăng nhập để lưu màu cá nhân.',
+'Storage transfer is still running. Retry to resume.':'Tác vụ chuyển dữ liệu vẫn đang chạy. Thử lại để tiếp tục.',
+'Submission policy updated.':'Đã cập nhật quy định gửi ticket.','Tab unavailable. Reload and try again.':'Tab không khả dụng. Tải lại rồi thử lại.',
+'The active tab changed. Reopen the editor.':'Tab hiện tại đã thay đổi. Hãy mở lại trình chỉnh sửa.',
+'This username already exists.':'Tên đăng nhập đã tồn tại.','Ticket unavailable':'Ticket không khả dụng','Update name':'Cập nhật tên',
+'Update recorded in the timeline.':'Đã ghi nhận cập nhật vào dòng thời gian.','Upload failed':'Tải lên thất bại','User created.':'Đã tạo người dùng.',
+'User preview enabled.':'Đã bật xem trước người dùng.','Workspace refresh failed':'Làm mới không gian làm việc thất bại'
+});
