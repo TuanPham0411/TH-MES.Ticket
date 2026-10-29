@@ -1,6 +1,6 @@
 # TH MES Ticket
 
-Independent MES feedback and ticket workspace for https://mes.th.io.vn. Repository: https://github.com/TuanPham0411/TH-MES.Ticket. Split from Thien-Ha at `66aa6e527d496679e3941eae02587e17660940ff`. No portfolio frontend or externally hosted Firebase/Supabase service is needed.
+Independent MES feedback and ticket workspace for https://ticket.th.io.vn. Repository: https://github.com/TuanPham0411/TH-Ticket. Split from Thien-Ha at `66aa6e527d496679e3941eae02587e17660940ff`. No portfolio frontend or externally hosted Firebase/Supabase service is needed.
 
 ## Included
 
@@ -12,9 +12,9 @@ Use Node.js 22.12+ and PostgreSQL 17. Run `npm ci`, `npm test`, `npm run build`.
 
 ## Docker
 
-Copy `.env.example` to a private `.env`. Set `MES_ORIGIN=https://mes.th.io.vn`, separate generated hexadecimal operator/runtime database passwords and the intended owner email. Run `docker compose up -d --build` after the replacement server is ready. The image is `ghcr.io/tuanpham0411/th-mes-ticket:latest` or an immutable commit tag, published for AMD64 and ARM64. The service binds loopback **8082**; database and media use separate persistent volumes.
+Copy `.env.example` to a private `.env`. Set `MES_ORIGIN=https://ticket.th.io.vn`, separate generated hexadecimal operator/runtime database passwords and the intended owner email. Run `docker compose up -d --build` after the replacement server is ready. The image is `ghcr.io/tuanpham0411/th-mes-ticket:latest` or an immutable commit tag, published for AMD64 and ARM64. The service binds loopback **8082**; database and media use separate persistent volumes.
 
-Set Google callback `https://mes.th.io.vn/api/oauth/callback`; optional Drive callback is `https://mes.th.io.vn/api/mes/drive/callback`. Drive credentials remain in private persistent storage. To activate a fresh initial owner, use an operator connection and `npm run bootstrap:owner`; the printed activation link is private and expires in 72 hours. This does not reset an existing owner.
+Set Google callback `https://ticket.th.io.vn/api/oauth/callback`; optional Drive callback is `https://ticket.th.io.vn/api/mes/drive/callback`. Drive credentials remain in private persistent storage. To activate a fresh initial owner, use an operator connection and `npm run bootstrap:owner`; the printed activation link is private and expires in 72 hours. This does not reset an existing owner.
 
 ## Portable scope
 

@@ -36,7 +36,7 @@ jobs:
         run: bash ci/package-release.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: th-mes-ticket-release-${{ github.sha }}
+          name: th-ticket-release-${{ github.sha }}
           retention-days: 30
           path: |
             work/*.tar.gz
@@ -69,7 +69,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: |
-            ghcr.io/tuanpham0411/th-mes-ticket:${{ github.sha }}
-            ghcr.io/tuanpham0411/th-mes-ticket:latest
-          cache-from: type=gha,scope=th-mes-ticket-${{ matrix.target }}
-          cache-to: type=gha,mode=max,scope=th-mes-ticket-${{ matrix.target }}
+            ghcr.io/tuanpham0411/th-ticket:${{ github.sha }}
+            ghcr.io/tuanpham0411/th-ticket:latest
+          cache-from: type=gha,scope=th-ticket-${{ matrix.target }}
+          cache-to: type=gha,mode=max,ignore-error=true,scope=th-ticket-${{ matrix.target }}

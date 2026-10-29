@@ -16,7 +16,7 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' &&
        github.event.workflow_run.head_repository.full_name == github.repository &&
        (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch'))
-    runs-on: [self-hosted, Linux, ARM64]
+    runs-on: [self-hosted, Linux, ARM64, th-ticket]
     timeout-minutes: 30
     env:
       RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
@@ -28,10 +28,10 @@ jobs:
           REGISTRY_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
           REGISTRY_USER: '${{ github.actor }}'
           TH_APPLICATION: mes-ticket
-          TH_REPOSITORY: TH-MES.Ticket
+          TH_REPOSITORY: '${{ github.event.repository.name }}'
         run: |
           set -euo pipefail
-          test "$SELECTED_RUNNER" = th-mes.ticket
+          test "$SELECTED_RUNNER" = th-ticket
           umask 077
           RELEASE_SOURCE="$(mktemp -d "$RUNNER_TEMP/th-release.XXXXXX")"
           export RELEASE_SOURCE
@@ -48,7 +48,7 @@ jobs:
           for file in compose.yaml storage.compose.yaml database-init.sh; do
             curl --fail --silent --show-error --location --retry 3 --max-time 60 "https://raw.githubusercontent.com/TuanPham0411/$TH_REPOSITORY/$RELEASE_SHA/$file" -o "$RELEASE_SOURCE/$file"
           done
-          curl --fail --silent --show-error --location --retry 3 --max-time 60 https://raw.githubusercontent.com/TuanPham0411/TH-RPI.Server/3091f49b328310e2e473c91919ee05efb9395670/deploy/application.py -o "$RELEASE_SOURCE/application.py"
+          curl --fail --silent --show-error --location --retry 3 --max-time 60 https://raw.githubusercontent.com/TuanPham0411/TH-RPI.Server/7c47a6b2c989b876d4c8afe1050fed5300755848/deploy/application.py -o "$RELEASE_SOURCE/application.py"
           python3 - <<'PYTHON'
           import os,shlex,subprocess
           source=os.environ['RELEASE_SOURCE']

@@ -16,23 +16,24 @@ services:
     restart: unless-stopped
   migrate:
     build: .
-    image: ghcr.io/tuanpham0411/th-mes-ticket:${IMAGE_TAG:-latest}
+    image: ghcr.io/tuanpham0411/th-ticket:${IMAGE_TAG:-latest}
     command: [node, dist/server/migrate.cjs]
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@database:5432/mes_ticket
-      MES_ORIGIN: ${MES_ORIGIN:?Set MES_ORIGIN}
+      MES_ORIGIN: https://ticket.th.io.vn
     depends_on:
       database:
         condition: service_healthy
     restart: "no"
   mes:
-    image: ghcr.io/tuanpham0411/th-mes-ticket:${IMAGE_TAG:-latest}
+    image: ghcr.io/tuanpham0411/th-ticket:${IMAGE_TAG:-latest}
     build: .
     env_file: .env
     environment:
       DATABASE_URL: postgresql://th_api:${MES_DB_PASSWORD}@database:5432/mes_ticket
       PORT: 3000
       HOST: 0.0.0.0
+      MES_ORIGIN: https://ticket.th.io.vn
       FILES_ROOT: /data/files
       DRIVE_TOKEN_FILE: /data/drive-credentials.json
       TRUST_PROXY: loopback,linklocal,uniquelocal
