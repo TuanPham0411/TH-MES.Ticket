@@ -27,3 +27,16 @@ jobs:
             status="$(curl --silent --show-error --max-time 30 --output /dev/null --write-out '%{http_code}' "$url")"
             printf '%s %s\\n' "$url" "$status"
           done
+          python3 - <<'PY'
+          import subprocess,re,json,pathlib
+          for url in ['http://127.0.0.1:8082/api/health','http://127.0.0.1/api/health','http://[::1]/api/health','https://ticket.th.io.vn/']:
+              command=['curl','--noproxy','*','-g','-sS','--max-time','10','-H','Host: ticket.th.io.vn','-w','\\nSTATUS:%{http_code}',url]
+              result=subprocess.run(command,capture_output=True,text=True)
+              title=re.search(r'<title>(.*?)</title>',result.stdout,re.S)
+              status=re.search(r'STATUS:(\\d+)',result.stdout)
+              print(json.dumps({'url':url,'status':status.group(1) if status else None,'title':title.group(1) if title else None}))
+          for path in pathlib.Path('/etc/nginx/sites-enabled').glob('*'):
+              try:content=path.read_text()
+              except OSError:continue
+              print(json.dumps({'nginxFile':str(path),'hosts':re.findall(r'server_name\\s+([^;]+);',content),'listen':re.findall(r'listen\\s+([^;]+);',content)}))
+          PY
