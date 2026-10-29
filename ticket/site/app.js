@@ -120,10 +120,10 @@ function errorMessage(e) {
     c.includes("not-found") ||
     c.includes("internal")
   )
-    return "TH.Ticket backend is not reachable or not deployed yet. Ask the owner to deploy the Supabase TH.Ticket API and database migration.";
+    return "TH.Ticket service is temporarily unavailable. Check your connection and try again.";
   if (c.includes("popup-closed")) return "Google sign-in was cancelled.";
   if (c.includes("unauthorized-domain"))
-    return "Add this site domain to Supabase Authentication redirect URLs.";
+    return "Google sign-in configuration needs to be updated by the administrator.";
   if (
     c.includes("failed-precondition") ||
     c.includes("invalid-argument") ||
@@ -178,7 +178,7 @@ function openAccount(owner = false) {
   $("signed-in-account").hidden = !state.user;
   showStatus("account-status", "");
   $("signed-in-summary").textContent = state.user
-    ? `${state.user.displayName} · ${state.isOwner ? "TH.Ticket owner" : state.user.username}`
+    ? `${state.user.displayName} · ${state.isOwner ? t("TH.Ticket owner") : state.user.username}`
     : "";
   $("account-dialog").showModal();
 }
@@ -731,14 +731,15 @@ function renderSettings() {
   $("user-rows").replaceChildren();
   for (const u of state.users) {
     const row = el("tr");
-    row.append(el("td", u.displayName), el("td", `${u.username} · ${u.id === "ticket-owner" ? "Owner" : u.role || "user"}`));
+    const identity=el("td");identity.append(userEl("span",u.username),document.createTextNode(" · "),el("span",t(u.id === "ticket-owner" ? "Owner" : u.role || "user")));
+    row.append(userEl("td", u.displayName), identity);
     const active = el("td");
     active.append(badge(u.active ? "Active" : "Inactive", "state"));
     const controls = el("td"),
       edit = el("button", "Edit", "text-button"),
       toggle = el("button", u.active ? "Deactivate" : "Restore", "text-button");
     edit.onclick = () => openUserAdmin(u);
-    const nameButton = el("button", u.displayName, "text-button account-name");
+    const nameButton = userEl("button", u.displayName, "text-button account-name");
     nameButton.onclick = () => openUserAdmin(u);
     nameButton.disabled = ["ticket-owner", "ticket-tester"].includes(u.id);
     row.firstChild.replaceChildren(nameButton);

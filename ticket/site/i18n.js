@@ -374,3 +374,5 @@ Object.assign(vi, {
 'Update recorded in the timeline.':'Đã ghi nhận cập nhật vào dòng thời gian.','Upload failed':'Tải lên thất bại','User created.':'Đã tạo người dùng.',
 'User preview enabled.':'Đã bật xem trước người dùng.','Workspace refresh failed':'Làm mới không gian làm việc thất bại'
 });
+
+Object.assign(vi,{'Owner':'Chủ hệ thống','TH.Ticket owner':'Chủ hệ thống TH.Ticket','user':'Người dùng','admin':'Quản trị viên','tester':'Người kiểm thử','TH.Ticket service is temporarily unavailable. Check your connection and try again.':'Dịch vụ TH.Ticket tạm thời không khả dụng. Kiểm tra kết nối rồi thử lại.','Google sign-in configuration needs to be updated by the administrator.':'Quản trị viên cần cập nhật cấu hình đăng nhập Google.'});
