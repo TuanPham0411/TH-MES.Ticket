@@ -2,9 +2,9 @@
 DO $feedback_upgrade$
 DECLARE definition text;
 BEGIN
-  definition:=pg_get_functiondef('public.mes_dispatch(text,jsonb,jsonb)'::regprocedure);
+  definition:=pg_get_functiondef('public.ticket_dispatch(text,jsonb,jsonb)'::regprocedure);
   IF position('Maximum 20 incident times' in definition)=0 THEN
-    IF position($before$  if jsonb_typeof(payload)<>'object' then raise exception 'Invalid payload'; end if;$before$ in definition)=0 THEN RAISE EXCEPTION 'MES dispatcher differs; review upgrade'; END IF;
+    IF position($before$  if jsonb_typeof(payload)<>'object' then raise exception 'Invalid payload'; end if;$before$ in definition)=0 THEN RAISE EXCEPTION 'Ticket dispatcher differs; review upgrade'; END IF;
     definition:=replace(definition,$before$  if jsonb_typeof(payload)<>'object' then raise exception 'Invalid payload'; end if;$before$,$after$  if jsonb_typeof(payload)<>'object' then raise exception 'Invalid payload'; end if;
   if action='createIssue' then
     if jsonb_typeof(payload->'description') is distinct from 'string' then raise exception 'Feedback must be text'; end if;
@@ -37,7 +37,7 @@ BEGIN
     r:=jsonb_build_object('subject',trim(payload->>'subject'),'process',trim(payload->>'process'),'description',trim(payload->>'description'),'reporterUid',u->>'uid','reporterName',u->>'displayName','reporterUsername',u->>'username','createdBy',uid,'teamLeaderId',payload->>'teamLeaderId','teamLeaderName',d->>'name','departmentId',payload->>'departmentId','departmentName',old->>'name','status','New','priority','Medium','assessment','','deleting',false,'attachments','[]'::jsonb,'uploadSlots',slots,'createdAt',tick,'updatedAt',tick);
     insert into records values('issues',ident,r);
     kind:='created'; message:='Feedback submitted.';
-$before$ in definition)=0 THEN RAISE EXCEPTION 'MES dispatcher differs; review upgrade'; END IF;
+$before$ in definition)=0 THEN RAISE EXCEPTION 'Ticket dispatcher differs; review upgrade'; END IF;
     definition:=replace(definition,$before$  elsif action='createIssue' then
     if char_length(trim(payload->>'subject')) not between 1 and 160 or char_length(trim(payload->>'process')) not between 1 and 120 or char_length(trim(payload->>'description')) not between 10 and 5000 or not (payload ?& array['subject','process','description','teamLeaderId','departmentId','reporterUid']) then raise exception 'Invalid feedback fields'; end if;
     if not own and payload->>'reporterUid'<>uid then raise exception 'Reporter does not match verified identity'; end if;

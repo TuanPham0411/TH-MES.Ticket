@@ -8,8 +8,8 @@ import {once} from 'node:events';
 import {filePath,deleteEverywhere,storageCommand} from './storage.js';
 import {driveCredentials,uploadDriveFile,driveApi,uploadDriveStream,hashFile} from './drive-client.js';
 import {cloudRecord,mediaProvider} from './cloud-media.js';
-export async function allMedia(pool){return (await pool.query("select path,type,size from public.files union all select 'media/'||id path,type,size from public.mes_media where ready")).rows;}
-async function putMapping(pool,row,file){await pool.query('insert into public.mes_cloud_files(path,drive_id,type,size,checksum) values($1,$2,$3,$4,$5) on conflict(path) do update set drive_id=excluded.drive_id,type=excluded.type,size=excluded.size,checksum=excluded.checksum',[file.path,row.id,file.type,file.size,row.checksum]);}
+export async function allMedia(pool){return (await pool.query("select path,type,size from public.files union all select 'media/'||id path,type,size from public.ticket_media where ready")).rows;}
+async function putMapping(pool,row,file){await pool.query('insert into public.ticket_cloud_files(path,drive_id,type,size,checksum) values($1,$2,$3,$4,$5) on conflict(path) do update set drive_id=excluded.drive_id,type=excluded.type,size=excluded.size,checksum=excluded.checksum',[file.path,row.id,file.type,file.size,row.checksum]);}
 export async function moveToDrive(pool,root,{mode='copy'}={}){
  if(!['copy','move'].includes(mode))throw new Error('Choose Copy or Move');const credentials=await driveCredentials();if(!credentials)throw new Error('Connect Google Drive first.');
  const files=await allMedia(pool);let copied=0,removed=0;
@@ -22,22 +22,22 @@ export async function moveToDrive(pool,root,{mode='copy'}={}){
    let preview;try{preview=await filePath(root,file.path+'.preview.jpg');await access(preview);}catch{continue;}
    const size=(await stat(preview)).size,result=await uploadDriveFile(preview,file.path+'.preview.jpg','image/jpeg',size);await putMapping(pool,result,{path:file.path+'.preview.jpg',type:'image/jpeg',size});
   }
-  await pool.query("update public.mes_storage_settings set provider='drive' where id='main'");
+  await pool.query("update public.ticket_storage_settings set provider='drive' where id='main'");
   if(mode==='move')for(const file of files){const entry=await cloudRecord(pool,file.path),check=await driveApi(`files/${encodeURIComponent(entry.drive_id)}?fields=id,size,md5Checksum`);if(!check.ok)throw new Error('Drive verification failed; remaining originals were retained');const metadata=await check.json();if(metadata.md5Checksum!==entry.checksum||Number(metadata.size)!==Number(file.size))throw new Error('Drive file differs; originals were retained');await deleteEverywhere(root,file.path);removed++;}
   return {kind:'drive-media',copied,removed,provider:'drive',files:files.length};
  }finally{await storageCommand('cloudEnd',{id:operation.id}).catch(()=>{});}
 }
 export async function copyFromDrive(pool,root,{target,mode='copy'}={}){
  if(!['copy','move'].includes(mode))throw new Error('Choose Copy or Move');
- const files=(await pool.query('select * from public.mes_cloud_files order by path')).rows;const operation=await storageCommand('cloudBegin');let copied=0;
+ const files=(await pool.query('select * from public.ticket_cloud_files order by path')).rows;const operation=await storageCommand('cloudBegin');let copied=0;
  try{
   for(const file of files){let dest=(await storageCommand('destination',{key:target,path:file.path})).path;try{await access(dest);if(await hashFile(dest)!==file.checksum)throw new Error('An existing local file differs. No file was overwritten.');copied++;continue;}catch(error){if(error.code!=='ENOENT')throw error;}
    await mkdir(new URL('.', 'file://'+dest),{recursive:true});const temporary=dest+'.'+randomUUID()+'.tmp';
    try{const response=await driveApi(`files/${encodeURIComponent(file.drive_id)}?alt=media`,{signal:AbortSignal.timeout(180000),headers:{'Accept-Encoding':'identity'}});if(!response.ok)throw new Error('Drive source unavailable');await pipeline(Readable.fromWeb(response.body),createWriteStream(temporary,{flags:'wx',mode:0o600}));if(await hashFile(temporary)!==file.checksum)throw new Error('Local copy checksum differs');const {publishFile}=await import('./publish.js');await publishFile(temporary,dest);copied++;}finally{await rm(temporary,{force:true});}
   }
   await storageCommand('select',{mode:'primary',id:target});
-  await pool.query("update public.mes_storage_settings set provider='local' where id='main'");
-  if(mode==='move')for(const file of files){const response=await driveApi(`files/${encodeURIComponent(file.drive_id)}`,{method:'DELETE'});if(!response.ok&&response.status!==404)throw new Error('Local copy is complete; some Drive originals could not be removed');await pool.query('delete from public.mes_cloud_files where path=$1',[file.path]);}
+  await pool.query("update public.ticket_storage_settings set provider='local' where id='main'");
+  if(mode==='move')for(const file of files){const response=await driveApi(`files/${encodeURIComponent(file.drive_id)}`,{method:'DELETE'});if(!response.ok&&response.status!==404)throw new Error('Local copy is complete; some Drive originals could not be removed');await pool.query('delete from public.ticket_cloud_files where path=$1',[file.path]);}
   return {kind:'drive-to-local',copied,provider:'local',files:files.length};
  }finally{await storageCommand('cloudEnd',{id:operation.id}).catch(()=>{});}
 }

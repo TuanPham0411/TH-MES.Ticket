@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {countScale} from '../mes/site/incident-chart.js';
-import {incidentLoad,severityOrder} from '../mes/site/incident-load.js';
+import {countScale} from '../ticket/site/incident-chart.js';
+import {incidentLoad,severityOrder} from '../ticket/site/incident-load.js';
 test('ticket axes use actual integer counts and retain a useful scale for sparse datasets',()=>{
  for(const count of [0,1,2,3,4,17,125,1200]){const scale=countScale(count);assert.ok(scale.max>=count);assert.ok(scale.max>=3);assert.equal(scale.ticks[0],0);assert.equal(scale.ticks.at(-1),scale.max);assert.ok(scale.ticks.every(Number.isInteger));assert.ok(scale.ticks.every((n,i)=>!i||n>scale.ticks[i-1]));}
  assert.deepEqual(countScale(1),{max:3,ticks:[0,1,2,3]});

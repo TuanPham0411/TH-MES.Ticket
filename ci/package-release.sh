@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-project=th-mes-ticket
+project=th-ticket
 root=$(pwd)
 release="$root/work/release"
 mkdir -p "$root/work/node"
@@ -10,7 +10,7 @@ cp -a dist "$release/dist"
 for name in start.mjs package.json package-lock.json; do
   if test -f "$name"; then cp "$name" "$release/"; fi
 done
-if test -d mes/dist; then mkdir -p "$release/mes"; cp -a mes/dist "$release/mes/dist"; fi
+if test -d ticket/dist; then mkdir -p "$release/ticket"; cp -a ticket/dist "$release/ticket/dist"; fi
 if test -d deploy; then cp -a deploy "$release/deploy"; fi
 if test -f RELEASE-README.md; then cp RELEASE-README.md "$release/"; fi
 

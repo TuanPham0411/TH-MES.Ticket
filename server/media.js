@@ -16,8 +16,8 @@ export async function displayPath(root,relative,preview=false){
 export function previewRouter(pool,root){
  const router=Router();
  router.put('/previews/:kind/:id/:slot',async(req,res)=>{
-  const {kind,id,slot}=req.params;const actor=actorFor(req.cookies.th_mes,req.headers['x-mes-tester']);
-  const dispatch=async(name,data)=>(await pool.query('select public.mes_dispatch($1,$2,$3) result',[name,data,actor])).rows[0].result;
+  const {kind,id,slot}=req.params;const actor=actorFor(req.cookies.th_ticket,req.headers['x-ticket-tester']);
+  const dispatch=async(name,data)=>(await pool.query('select public.ticket_dispatch($1,$2,$3) result',[name,data,actor])).rows[0].result;
   let relative;
   if(kind==='ticket'){
    relative=`issues/${id}/${slot}`;if(!validPath(relative))return res.sendStatus(400);
@@ -27,7 +27,7 @@ export function previewRouter(pool,root){
   }else if(kind==='media'){
    if(!/^[a-f0-9-]{36}$/.test(id)||slot!=='image')return res.sendStatus(400);
    const s=await dispatch('getSession',{});if(!s.isOwner)return res.sendStatus(403);
-   const {rows:[f]}=await pool.query('select type from public.mes_media where id=$1 and ready',[id]);if(!f?.type.startsWith('image/'))return res.sendStatus(400);relative=`media/${id}`;
+   const {rows:[f]}=await pool.query('select type from public.ticket_media where id=$1 and ready',[id]);if(!f?.type.startsWith('image/'))return res.sendStatus(400);relative=`media/${id}`;
   }else return res.sendStatus(400);
   if(req.headers['content-type']!=='image/jpeg')return res.sendStatus(400);
   const cloud=await cloudRecord(pool,relative),cloudMode=!!cloud&&await mediaProvider(pool)==='drive';

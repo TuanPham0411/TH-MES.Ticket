@@ -1,11 +1,11 @@
 {
-  "name": "th-mes-ticket",
+  "name": "th-ticket",
   "private": true,
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "build": "npm run build:mes && npm run build:server",
-    "build:mes": "vite build --config vite.mes.config.js",
+    "build": "npm run build:ticket && npm run build:server",
+    "build:ticket": "vite build --config vite.ticket.config.js",
     "build:server": "node server/build.js",
     "start": "node start.mjs",
     "migrate": "node dist/server/migrate.cjs",

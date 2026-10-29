@@ -3,7 +3,7 @@
 node_modules
 work
 dist
-mes/dist
+ticket/dist
 .env
 .env.*
 *.dump

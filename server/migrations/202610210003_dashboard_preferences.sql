@@ -1,11 +1,11 @@
-alter function public.mes_dispatch(text,jsonb,jsonb) rename to dispatch_before_dashboard_preferences;
-alter function public.dispatch_before_dashboard_preferences(text,jsonb,jsonb) set schema mes_private;
-create function public.mes_dispatch(action text,payload jsonb,actor jsonb default '{}'::jsonb)
-returns jsonb language plpgsql security definer set search_path=mes_private,extensions,pg_temp as $$
+alter function public.ticket_dispatch(text,jsonb,jsonb) rename to dispatch_before_dashboard_preferences;
+alter function public.dispatch_before_dashboard_preferences(text,jsonb,jsonb) set schema ticket_private;
+create function public.ticket_dispatch(action text,payload jsonb,actor jsonb default '{}'::jsonb)
+returns jsonb language plpgsql security definer set search_path=ticket_private,extensions,pg_temp as $$
 declare current_session jsonb; uid_value text; hidden jsonb; item jsonb; result jsonb;
 begin
  if action in ('getDashboardPreferences','saveDashboardPreferences') then
-  current_session:=mes_private.dispatch_before_dashboard_preferences('getSession','{}',actor);uid_value:=current_session->'user'->>'uid';
+  current_session:=ticket_private.dispatch_before_dashboard_preferences('getSession','{}',actor);uid_value:=current_session->'user'->>'uid';
   if action='getDashboardPreferences' then
    select data into result from records where collection='dashboardPreferences' and id=uid_value;
    return coalesce(result,'{"hidden":[]}'::jsonb);
@@ -19,5 +19,5 @@ begin
   insert into records(collection,id,data) values('dashboardPreferences',uid_value,result) on conflict(collection,id) do update set data=excluded.data;
   return result;
  end if;
- return mes_private.dispatch_before_dashboard_preferences(action,payload,actor);
+ return ticket_private.dispatch_before_dashboard_preferences(action,payload,actor);
 end $$;

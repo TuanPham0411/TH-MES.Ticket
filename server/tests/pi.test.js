@@ -22,22 +22,22 @@ before(async()=>{
  }
  const historical={subject:'Lịch sử trước nâng cấp',description:'Nội dung và liên kết gốc',attachments:[{path:'issues/preserved/slot-original'}],status:'In progress',createdAt:1700000000000,progress:47};
  const event={kind:'handling',text:'Ghi chú cũ giữ nguyên',author:'Existing user',createdAt:1700000001000};
- await pool.query("insert into mes_private.records(collection,id,data) values('issues','preserved-upgrade-test',$1),('issues/preserved-upgrade-test/timeline','old-event',$2)",[historical,event]);
- await pool.query("insert into mes_private.records(collection,id,data) values('issues','boundary-before',$1),('issues','boundary-after',$2)",[{createdAt:Date.parse('2025-12-31T16:59:59Z'),description:'Before VN new year'},{createdAt:Date.parse('2025-12-31T17:00:00Z'),description:'After VN new year'}]);
- const beforeUpgrade=(await pool.query("select collection,id,data from mes_private.records where id in ('preserved-upgrade-test','old-event') order by collection,id")).rows;
+ await pool.query("insert into ticket_private.records(collection,id,data) values('issues','preserved-upgrade-test',$1),('issues/preserved-upgrade-test/timeline','old-event',$2)",[historical,event]);
+ await pool.query("insert into ticket_private.records(collection,id,data) values('issues','boundary-before',$1),('issues','boundary-after',$2)",[{createdAt:Date.parse('2025-12-31T16:59:59Z'),description:'Before VN new year'},{createdAt:Date.parse('2025-12-31T17:00:00Z'),description:'After VN new year'}]);
+ const beforeUpgrade=(await pool.query("select collection,id,data from ticket_private.records where id in ('preserved-upgrade-test','old-event') order by collection,id")).rows;
  const result=spawnSync(process.execPath,['server/migrate.js'],{env:{...process.env,DATABASE_URL:url},encoding:'utf8'});assert.equal(result.status,0,result.stderr);
  const twice=spawnSync(process.execPath,['server/migrate.js'],{env:{...process.env,DATABASE_URL:url},encoding:'utf8'});assert.equal(twice.status,0,twice.stderr);
- assert.deepEqual((await pool.query("select collection,id,data from mes_private.records where id in ('preserved-upgrade-test','old-event') order by collection,id")).rows,beforeUpgrade,'Upgrade must preserve existing ticket data and history exactly');
- const boundary=(await pool.query("select issue_id,code from public.mes_ticket_codes where issue_id in ('boundary-before','boundary-after') order by issue_id")).rows;
+ assert.deepEqual((await pool.query("select collection,id,data from ticket_private.records where id in ('preserved-upgrade-test','old-event') order by collection,id")).rows,beforeUpgrade,'Upgrade must preserve existing ticket data and history exactly');
+ const boundary=(await pool.query("select issue_id,code from public.ticket_codes where issue_id in ('boundary-before','boundary-after') order by issue_id")).rows;
  assert.deepEqual(boundary,[{issue_id:'boundary-after',code:'TH2601-01'},{issue_id:'boundary-before',code:'TH2512-01'}],'Backfill uses Vietnam calendar months and resets across December/January');
- await pool.query("delete from mes_private.records where id in ('preserved-upgrade-test','old-event','boundary-before','boundary-after')");
+ await pool.query("delete from ticket_private.records where id in ('preserved-upgrade-test','old-event','boundary-before','boundary-after')");
  files=await mkdtemp(join(tmpdir(),'th-api-'));runtimePool=new pg.Pool({connectionString:url,options:'-c role=th_api'});server=createApp(runtimePool,files).listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));base=`http://127.0.0.1:${server.address().port}`;
 });
 after(async()=>{await new Promise(resolve=>server.close(resolve));await runtimePool.end();await pool.end();await rm(files,{recursive:true,force:true});});
 async function api(name,data={},cookie='',host='ticket.th.io.vn',extra={}) {
  if(name==='createIssue'&&data.occurrences===undefined)data={...data,occurrences:[{kind:'point',start:new Date().toISOString()}]};
  if(name==='createIssue'&&data.evidence===undefined)data={...data,evidence:[{name:'evidence.png',type:'image/png',size:100}]};
- const response=await fetch(base+(host==='th.io.vn'?'/api/portfolio':'/api/mes'),{method:'POST',headers:{'x-forwarded-host':host,'Content-Type':'application/json',cookie,...extra},body:JSON.stringify(host==='th.io.vn'?{action:name,data}:{name,data})});
+ const response=await fetch(base+(host==='th.io.vn'?'/api/portfolio':'/api/ticket'),{method:'POST',headers:{'x-forwarded-host':host,'Content-Type':'application/json',cookie,...extra},body:JSON.stringify(host==='th.io.vn'?{action:name,data}:{name,data})});
  const text=await response.text();let body;try{body=JSON.parse(text);}catch{body=text;}
  return {status:response.status,body,cookie:response.headers.get('set-cookie')?.split(';')[0],headers:response.headers};
 }
@@ -55,8 +55,8 @@ test('public clients cannot inject owner claims or traverse files',async()=>{
  assert.equal((await api('getDirectory',{},'','ticket.th.io.vn',{origin:'https://evil.test'})).status,403);
  const result=await api('getDirectory');assert.deepEqual(result.body.users,[]);
 });
-test('MES activation, CRUD, private files, tester restrictions, revocation',async()=>{
- const {rows:[activation]}=await pool.query('select public.mes_issue_owner_activation() as result');
+test('Ticket activation, CRUD, private files, tester restrictions, revocation',async()=>{
+ const {rows:[activation]}=await pool.query('select public.ticket_issue_owner_activation() as result');
  const login=await api('activateAccount',{username:'hpham',activationCode:activation.result.activationCode,password:'test-owner-password'});
  assert.equal(login.status,200,JSON.stringify(login.body));assert.ok(login.cookie);assert.equal(login.body.sessionToken,undefined);assert.match(login.headers.get('set-cookie'),/HttpOnly/);assert.match(login.headers.get('set-cookie'),/Secure/);
  const owner=login.cookie;
@@ -79,7 +79,7 @@ test('MES activation, CRUD, private files, tester restrictions, revocation',asyn
  const download=await api('downloadUrl',{path},user);assert.equal(download.status,200);assert.equal(await (await fetch(base+download.body.url,{headers:{'x-forwarded-host':'ticket.th.io.vn'}})).text(),'attachment payload');
  assert.equal((await api('uploadUrl',{path:'issues/../../etc/passwd'},user)).status,400);
  assert.equal((await api('deleteIssue',{id:issue.body.id},user)).status,403);
- assert.equal((await api('manageDirectory',{type:'departments',operation:'create',name:'Blocked'},owner,'ticket.th.io.vn',{'x-mes-tester':'true'})).status,403);
+ assert.equal((await api('manageDirectory',{type:'departments',operation:'create',name:'Blocked'},owner,'ticket.th.io.vn',{'x-ticket-tester':'true'})).status,403);
  assert.equal((await api('manageUser',{operation:'deactivate',uid:created.body.uid,active:false},owner)).status,200);
  assert.equal((await api('getSession',{},user)).status,401);
  assert.equal((await api('deleteIssue',{id:issue.body.id},owner)).status,200);
@@ -98,7 +98,7 @@ test('administrator edits, reissues and deletes accounts; self profile cannot el
  const activated=await api('activateAccount',{username:'admin.lifecycle',activationCode:reissued.body.activationCode,password:'test-user-password'});
  assert.equal(activated.status,200); const user=activated.cookie;
  for (const name of ['manageUser','resetUserActivation']) assert.equal((await api(name,{operation:'delete',uid},user)).status,403);
- assert.equal((await api('saveProfile',{displayName:'Self edited',uid:'mes-owner',username:'hpham',owner:true,active:false,email:'self@example.com'},user)).status,200);
+ assert.equal((await api('saveProfile',{displayName:'Self edited',uid:'ticket-owner',username:'hpham',owner:true,active:false,email:'self@example.com'},user)).status,200);
  const profile=(await api('getProfile',{},user)).body;assert.equal(profile.isOwner,false);assert.equal(profile.profile.username,'admin.lifecycle');assert.equal(profile.profile.active,true);
  const edited=await api('manageUser',{operation:'update',uid,username:'admin.renamed',displayName:'Admin edited',email:'edited@example.com',phone:'123',jobTitle:'Operator'},owner);
  assert.equal(edited.status,200,JSON.stringify(edited.body));assert.equal((await api('getProfile',{},user)).status,401);
@@ -111,20 +111,20 @@ test('administrator edits, reissues and deletes accounts; self profile cannot el
  assert.equal((await api('manageUser',{operation:'deactivate',uid,active:false},owner)).status,200);
  assert.equal((await api('getProfile',{},next.cookie)).status,401);
  assert.equal((await api('manageUser',{operation:'deactivate',uid,active:true},owner)).status,200);
- await pool.query("insert into mes_private.records(collection,id,data) values('issues','deleted-account-history',$1)",[{reporterUid:uid,subject:'Preserve history'}]);
+ await pool.query("insert into ticket_private.records(collection,id,data) values('issues','deleted-account-history',$1)",[{reporterUid:uid,subject:'Preserve history'}]);
  const final=await api('passwordLogin',{username:'admin.renamed',password:'new-user-password'});assert.equal(final.status,200);
  assert.equal((await api('manageUser',{operation:'delete',uid},owner)).status,200);
  assert.equal((await api('getProfile',{},final.cookie)).status,401);
  assert.equal((await api('passwordLogin',{username:'admin.renamed',password:'new-user-password'})).status,401);
- for (const uid of ['mes-owner','mes-tester']) assert.equal((await api('manageUser',{operation:'delete',uid},owner)).status,403);
- assert.equal((await pool.query("select data->>'reporterUid' uid from mes_private.records where collection='issues' and id='deleted-account-history'")).rows[0].uid,uid);
- const missing=await pool.query("select count(*)::int n from mes_private.credentials where uid=$1",[uid]);assert.equal(missing.rows[0].n,0);
+ for (const uid of ['ticket-owner','ticket-tester']) assert.equal((await api('manageUser',{operation:'delete',uid},owner)).status,403);
+ assert.equal((await pool.query("select data->>'reporterUid' uid from ticket_private.records where collection='issues' and id='deleted-account-history'")).rows[0].uid,uid);
+ const missing=await pool.query("select count(*)::int n from ticket_private.credentials where uid=$1",[uid]);assert.equal(missing.rows[0].n,0);
 });
 test('workspace publishing, media, categories and progress enforce roles and preserve history',async()=>{
  const owner=(await api('passwordLogin',{username:'hpham',password:'test-owner-password'})).cookie;
  const created=await api('manageUser',{operation:'create',username:'workspace.user',displayName:'Workspace User'},owner);
  const user=(await api('activateAccount',{username:'workspace.user',activationCode:created.body.activationCode,password:'workspace-password'})).cookie;
- async function ws(action,data={},cookie=owner){const response=await fetch(base+'/api/mes/workspace',{method:'POST',headers:{'x-forwarded-host':'ticket.th.io.vn','Content-Type':'application/json',cookie:cookie||''},body:JSON.stringify({action,data})});return {status:response.status,body:await response.json()};}
+ async function ws(action,data={},cookie=owner){const response=await fetch(base+'/api/ticket/workspace',{method:'POST',headers:{'x-forwarded-host':'ticket.th.io.vn','Content-Type':'application/json',cookie:cookie||''},body:JSON.stringify({action,data})});return {status:response.status,body:await response.json()};}
  assert.equal((await ws('read',{},'')).status,200);
  assert.equal((await ws('save',{kind:'announcements',title:'Denied',body:'No'},user)).status,403);
  const published=await ws('save',{kind:'announcements',title:'Production update',body:'New instructions',active:true,pinned:true});assert.equal(published.status,200,JSON.stringify(published.body));
@@ -133,14 +133,14 @@ test('workspace publishing, media, categories and progress enforce roles and pre
  const category=await ws('save',{kind:'issueTypes',name:'Connectivity'});assert.equal(category.status,200);
  const dep=await api('manageDirectory',{type:'departments',operation:'create',name:'Workspace Department'},owner);assert.equal(dep.status,200);
  const issue=await api('createIssue',{reporterUid:created.body.uid,departmentId:dep.body.id,issueTypeId:category.body.id,issueTypeName:'Forged',process:'Station A',description:'Connection interrupted'},user);assert.equal(issue.status,200,JSON.stringify(issue.body));
- let stored=(await pool.query("select data from mes_private.records where collection='issues' and id=$1",[issue.body.id])).rows[0].data;assert.equal(stored.issueTypeName,'Connectivity');assert.equal(stored.progress,0);
+ let stored=(await pool.query("select data from ticket_private.records where collection='issues' and id=$1",[issue.body.id])).rows[0].data;assert.equal(stored.issueTypeName,'Connectivity');assert.equal(stored.progress,0);
  assert.equal((await api('createIssue',{reporterUid:created.body.uid,departmentId:dep.body.id,issueTypeId:'missing',process:'Station',description:'Failure'},user)).status,403);
  assert.equal((await api('updateIssue',{id:issue.body.id,operation:'handling',status:'In progress',priority:'High',progress:70},user)).status,403);
  assert.equal((await api('updateIssue',{id:issue.body.id,operation:'handling',status:'In progress',priority:'High',progress:120},owner)).status,403);
  assert.equal((await api('updateIssue',{id:issue.body.id,operation:'handling',status:'In progress',priority:'High',progress:70},owner)).status,200);
- stored=(await pool.query("select data from mes_private.records where collection='issues' and id=$1",[issue.body.id])).rows[0].data;assert.equal(stored.progress,70);
+ stored=(await pool.query("select data from ticket_private.records where collection='issues' and id=$1",[issue.body.id])).rows[0].data;assert.equal(stored.progress,70);
  assert.equal((await api('updateIssue',{id:issue.body.id,operation:'handling',status:'Closed',priority:'High',progress:10},owner)).status,200);
- await ws('delete',{kind:'issueTypes',id:category.body.id});stored=(await pool.query("select data from mes_private.records where collection='issues' and id=$1",[issue.body.id])).rows[0].data;assert.equal(stored.issueTypeName,'Connectivity');assert.equal(stored.progress,100);
+ await ws('delete',{kind:'issueTypes',id:category.body.id});stored=(await pool.query("select data from ticket_private.records where collection='issues' and id=$1",[issue.body.id])).rows[0].data;assert.equal(stored.issueTypeName,'Connectivity');assert.equal(stored.progress,100);
  // Ticket video goes through the same authenticated, immutable attachment slots.
  const filePath=`issues/${issue.body.id}/${issue.body.uploadSlots[0]}`;const grant=await api('uploadUrl',{path:filePath},user);assert.equal(grant.status,200);
  const upload=await fetch(base+grant.body.url,{method:'PUT',headers:{'x-forwarded-host':'ticket.th.io.vn','Content-Type':'video/mp4'},body:Buffer.from('test-mp4')});assert.equal(upload.status,200);
@@ -149,45 +149,45 @@ test('workspace publishing, media, categories and progress enforce roles and pre
  const media=await ws('videoUpload',{title:'Production training',type:'video/mp4',size:8});assert.equal(media.status,200,JSON.stringify(media.body));
  let response=await fetch(base+media.body.url,{method:'PUT',headers:{'x-forwarded-host':'ticket.th.io.vn','Content-Type':'video/mp4'},body:Buffer.from('12345678')});assert.equal(response.status,200);
  assert.equal((await fetch(base+media.body.url,{method:'PUT',headers:{'x-forwarded-host':'ticket.th.io.vn','Content-Type':'video/mp4'},body:'12345678'})).status,403);
- assert.equal((await fetch(base+`/api/mes/media/${media.body.id}`,{headers:{'x-forwarded-host':'ticket.th.io.vn'}})).status,200);
- response=await fetch(base+`/api/mes/media/${media.body.id}`,{headers:{'x-forwarded-host':'ticket.th.io.vn',cookie:user,range:'bytes=0-3'}});assert.equal(response.status,206);assert.equal(await response.text(),'1234');
+ assert.equal((await fetch(base+`/api/ticket/media/${media.body.id}`,{headers:{'x-forwarded-host':'ticket.th.io.vn'}})).status,200);
+ response=await fetch(base+`/api/ticket/media/${media.body.id}`,{headers:{'x-forwarded-host':'ticket.th.io.vn',cookie:user,range:'bytes=0-3'}});assert.equal(response.status,206);assert.equal(await response.text(),'1234');
  assert.equal((await ws('videoUpdate',{id:media.body.id,title:'Updated title'})).status,200);
  assert.equal((await ws('videoDelete',{id:media.body.id})).status,200);
- assert.equal((await fetch(base+`/api/mes/media/${media.body.id}`,{headers:{'x-forwarded-host':'ticket.th.io.vn',cookie:user}})).status,404);
+ assert.equal((await fetch(base+`/api/ticket/media/${media.body.id}`,{headers:{'x-forwarded-host':'ticket.th.io.vn',cookie:user}})).status,404);
  assert.equal((await ws('probeLog',{})).status,400);
  assert.equal((await ws('save',{kind:'networkTargets',name:'Removed'})).status,400);
 });
 test('200 MB video uploads stream in chunks for owner and user, with resume and notice privacy',async()=>{
- async function cookieFor(uid){return 'th_mes='+(await pool.query('select mes_private.open_account_session($1) result',[uid])).rows[0].result.sessionToken;}
- const owner=await cookieFor('mes-owner');const {rows:[person]}=await pool.query("select id from mes_private.records where collection='users' and data->>'username'='workspace.user'");const user=await cookieFor(person.id);
+ async function cookieFor(uid){return 'th_ticket='+(await pool.query('select ticket_private.open_account_session($1) result',[uid])).rows[0].result.sessionToken;}
+ const owner=await cookieFor('ticket-owner');const {rows:[person]}=await pool.query("select id from ticket_private.records where collection='users' and data->>'username'='workspace.user'");const user=await cookieFor(person.id);
  async function call(path,data,cookie=owner,method='POST',headers={}){const response=await fetch(base+path,{method,headers:{'x-forwarded-host':'ticket.th.io.vn','Content-Type':'application/json',cookie,...headers},...(data===undefined?{}:{body:Buffer.isBuffer(data)?data:JSON.stringify(data)})});let body;try{body=await response.json();}catch{}return {status:response.status,body};}
- const ws=(action,data,cookie=owner)=>call('/api/mes/workspace',{action,data},cookie);
+ const ws=(action,data,cookie=owner)=>call('/api/ticket/workspace',{action,data},cookie);
  const maximum=200*1024*1024,chunk=Buffer.alloc(4*1024*1024,93);
  const media=await ws('videoUpload',{title:'200 MB boundary',type:'video/mp4',size:maximum});assert.equal(media.status,200);
  assert.equal((await ws('videoUpload',{title:'Too large',type:'video/mp4',size:maximum+1})).status,400);
- const started=await call('/api/mes/uploads',{kind:'media',path:media.body.id,type:'video/mp4',size:maximum});assert.equal(started.status,200,JSON.stringify(started.body));
- assert.equal((await call('/api/mes/uploads/'+started.body.id,undefined,user,'GET')).status,403);
- assert.equal((await call('/api/mes/uploads/'+started.body.id,Buffer.from('x'),owner,'PATCH',{'Content-Type':'application/octet-stream','Upload-Offset':'1'})).status,409);
- for(let offset=0;offset<maximum;offset+=chunk.length){const r=await call('/api/mes/uploads/'+started.body.id,chunk,owner,'PATCH',{'Content-Type':'application/octet-stream','Upload-Offset':String(offset)});assert.equal(r.status,200,JSON.stringify(r.body));assert.equal(r.body.offset,offset+chunk.length);}
- const again=await call('/api/mes/uploads',{kind:'media',path:media.body.id,type:'video/mp4',size:maximum});assert.equal(again.body.complete,true);assert.equal(again.body.offset,maximum);
- const range=await fetch(base+`/api/mes/media/${media.body.id}`,{headers:{'x-forwarded-host':'ticket.th.io.vn',cookie:user,range:`bytes=${maximum-1}-${maximum-1}`}});assert.equal(range.status,206);assert.equal(new Uint8Array(await range.arrayBuffer())[0],93);
- const dep=(await pool.query("select id from mes_private.records where collection='departments' and (data->>'active')::boolean limit 1")).rows[0];
+ const started=await call('/api/ticket/uploads',{kind:'media',path:media.body.id,type:'video/mp4',size:maximum});assert.equal(started.status,200,JSON.stringify(started.body));
+ assert.equal((await call('/api/ticket/uploads/'+started.body.id,undefined,user,'GET')).status,403);
+ assert.equal((await call('/api/ticket/uploads/'+started.body.id,Buffer.from('x'),owner,'PATCH',{'Content-Type':'application/octet-stream','Upload-Offset':'1'})).status,409);
+ for(let offset=0;offset<maximum;offset+=chunk.length){const r=await call('/api/ticket/uploads/'+started.body.id,chunk,owner,'PATCH',{'Content-Type':'application/octet-stream','Upload-Offset':String(offset)});assert.equal(r.status,200,JSON.stringify(r.body));assert.equal(r.body.offset,offset+chunk.length);}
+ const again=await call('/api/ticket/uploads',{kind:'media',path:media.body.id,type:'video/mp4',size:maximum});assert.equal(again.body.complete,true);assert.equal(again.body.offset,maximum);
+ const range=await fetch(base+`/api/ticket/media/${media.body.id}`,{headers:{'x-forwarded-host':'ticket.th.io.vn',cookie:user,range:`bytes=${maximum-1}-${maximum-1}`}});assert.equal(range.status,206);assert.equal(new Uint8Array(await range.arrayBuffer())[0],93);
+ const dep=(await pool.query("select id from ticket_private.records where collection='departments' and (data->>'active')::boolean limit 1")).rows[0];
  const issue=await api('createIssue',{reporterUid:person.id,departmentId:dep.id,process:'Large evidence',description:'Large user video'},user);assert.equal(issue.status,200);
  const path=`issues/${issue.body.id}/${issue.body.uploadSlots[0]}`;
- assert.equal((await call('/api/mes/uploads',{kind:'ticket',path,type:'video/mp4',size:maximum+1},user)).status,400);
- const ticket=await call('/api/mes/uploads',{kind:'ticket',path,type:'video/mp4',size:maximum},user);assert.equal(ticket.status,200,JSON.stringify(ticket.body));
- for(let offset=0;offset<maximum;offset+=chunk.length){const r=await call('/api/mes/uploads/'+ticket.body.id,chunk,user,'PATCH',{'Content-Type':'application/octet-stream','Upload-Offset':String(offset)});assert.equal(r.status,200,JSON.stringify(r.body));}
+ assert.equal((await call('/api/ticket/uploads',{kind:'ticket',path,type:'video/mp4',size:maximum+1},user)).status,400);
+ const ticket=await call('/api/ticket/uploads',{kind:'ticket',path,type:'video/mp4',size:maximum},user);assert.equal(ticket.status,200,JSON.stringify(ticket.body));
+ for(let offset=0;offset<maximum;offset+=chunk.length){const r=await call('/api/ticket/uploads/'+ticket.body.id,chunk,user,'PATCH',{'Content-Type':'application/octet-stream','Upload-Offset':String(offset)});assert.equal(r.status,200,JSON.stringify(r.body));}
  assert.equal((await api('attachFiles',{issueId:issue.body.id,files:[{slot:issue.body.uploadSlots[0],name:'200mb.mp4'}]},user)).status,200);
  assert.equal(Number((await pool.query('select size from public.files where path=$1',[path])).rows[0].size),maximum);
- const broken=await ws('mediaUpload',{purpose:'notice',title:'Retry incomplete chunk',type:'image/png',size:6});const partial=await call('/api/mes/uploads',{kind:'media',path:broken.body.id,type:'image/png',size:6});
- try{const bad=await call('/api/mes/uploads/'+partial.body.id,Buffer.from('toolongfile'),owner,'PATCH',{'Content-Type':'application/octet-stream','Upload-Offset':'0'});assert.notEqual(bad.status,200);}catch(error){assert.ok(error instanceof TypeError);}
- const partialStatus=await call('/api/mes/uploads/'+partial.body.id,undefined,owner,'GET');assert.equal(partialStatus.body.offset,0);assert.equal(partialStatus.body.complete,false);
- assert.equal((await call('/api/mes/uploads/'+partial.body.id,Buffer.from('small!'),owner,'PATCH',{'Content-Type':'application/octet-stream','Upload-Offset':'0'})).status,200);
+ const broken=await ws('mediaUpload',{purpose:'notice',title:'Retry incomplete chunk',type:'image/png',size:6});const partial=await call('/api/ticket/uploads',{kind:'media',path:broken.body.id,type:'image/png',size:6});
+ try{const bad=await call('/api/ticket/uploads/'+partial.body.id,Buffer.from('toolongfile'),owner,'PATCH',{'Content-Type':'application/octet-stream','Upload-Offset':'0'});assert.notEqual(bad.status,200);}catch(error){assert.ok(error instanceof TypeError);}
+ const partialStatus=await call('/api/ticket/uploads/'+partial.body.id,undefined,owner,'GET');assert.equal(partialStatus.body.offset,0);assert.equal(partialStatus.body.complete,false);
+ assert.equal((await call('/api/ticket/uploads/'+partial.body.id,Buffer.from('small!'),owner,'PATCH',{'Content-Type':'application/octet-stream','Upload-Offset':'0'})).status,200);
  const image=await ws('mediaUpload',{purpose:'notice',title:'Notice photo',type:'image/png',size:8});assert.equal(image.status,200);
- const imageUpload=await call('/api/mes/uploads',{kind:'media',path:image.body.id,type:'image/png',size:8});assert.equal(imageUpload.status,200);
- assert.equal((await call('/api/mes/uploads/'+imageUpload.body.id,Buffer.from('imagepng'),owner,'PATCH',{'Content-Type':'application/octet-stream','Upload-Offset':'0'})).status,200);
- const noticeVideo=await ws('mediaUpload',{purpose:'notice',title:'Notice video',type:'video/webm',size:8});assert.equal(noticeVideo.status,200);const v=await call('/api/mes/uploads',{kind:'media',path:noticeVideo.body.id,type:'video/webm',size:8});await call('/api/mes/uploads/'+v.body.id,Buffer.from('webmtest'),owner,'PATCH',{'Content-Type':'application/octet-stream','Upload-Offset':'0'});
- const mediaGet=()=>fetch(base+`/api/mes/media/${image.body.id}`,{headers:{'x-forwarded-host':'ticket.th.io.vn',cookie:user}});
+ const imageUpload=await call('/api/ticket/uploads',{kind:'media',path:image.body.id,type:'image/png',size:8});assert.equal(imageUpload.status,200);
+ assert.equal((await call('/api/ticket/uploads/'+imageUpload.body.id,Buffer.from('imagepng'),owner,'PATCH',{'Content-Type':'application/octet-stream','Upload-Offset':'0'})).status,200);
+ const noticeVideo=await ws('mediaUpload',{purpose:'notice',title:'Notice video',type:'video/webm',size:8});assert.equal(noticeVideo.status,200);const v=await call('/api/ticket/uploads',{kind:'media',path:noticeVideo.body.id,type:'video/webm',size:8});await call('/api/ticket/uploads/'+v.body.id,Buffer.from('webmtest'),owner,'PATCH',{'Content-Type':'application/octet-stream','Upload-Offset':'0'});
+ const mediaGet=()=>fetch(base+`/api/ticket/media/${image.body.id}`,{headers:{'x-forwarded-host':'ticket.th.io.vn',cookie:user}});
  assert.equal((await mediaGet()).status,404);
  const notice=await ws('save',{kind:'announcements',title:'Photo and video',body:'Notice attachments',active:false,media:[image.body.id,noticeVideo.body.id]});assert.equal(notice.status,200,JSON.stringify(notice.body));
  assert.equal((await mediaGet()).status,404);
@@ -196,7 +196,7 @@ test('200 MB video uploads stream in chunks for owner and user, with resume and 
  const visible=(await ws('read',{},user)).body;assert.equal(visible.announcements.find(x=>x.id===notice.body.id).media.length,2);assert.equal(visible.videos.some(x=>x.id===image.body.id),false);assert.equal(visible.targets,undefined);
  assert.equal((await ws('save',{kind:'announcements',id:notice.body.id,title:'Denied',body:'Edit'},user)).status,403);
  assert.equal((await ws('delete',{kind:'announcements',id:notice.body.id})).status,200);assert.equal((await mediaGet()).status,404);
- assert.equal((await pool.query('select id from public.mes_media where id=any($1::text[])',[[image.body.id,noticeVideo.body.id]])).rowCount,0);
+ assert.equal((await pool.query('select id from public.ticket_media where id=any($1::text[])',[[image.body.id,noticeVideo.body.id]])).rowCount,0);
 });
 test('portfolio server authorization, profile, bookmarks, inquiries and reset tokens',async()=>{
  const {rows:[u]}=await pool.query("insert into portfolio.users(email,password,name,verified) values('pi@example.test',extensions.crypt('test-user-password',extensions.gen_salt('bf',4)),'Pi User',true) returning *");
@@ -213,11 +213,11 @@ test('portfolio server authorization, profile, bookmarks, inquiries and reset to
  assert.equal((await query('session',{})).body.user,null);
  assert.equal((await api('consumeToken',{purpose:'reset',token:resetToken,password:'new-test-password'},'','th.io.vn')).status,403);
 });
-test('runtime role cannot read private MES credentials or bootstrap owner',async()=>{
+test('runtime role cannot read private Ticket credentials or bootstrap owner',async()=>{
  const connection=await pool.connect();
  try {await connection.query('set role th_api');
-  await assert.rejects(connection.query('select * from mes_private.credentials'),e=>e.code==='42501');
-  await assert.rejects(connection.query('select public.mes_issue_owner_activation()'),e=>e.code==='42501');
+  await assert.rejects(connection.query('select * from ticket_private.credentials'),e=>e.code==='42501');
+  await assert.rejects(connection.query('select public.ticket_issue_owner_activation()'),e=>e.code==='42501');
  }finally{await connection.query('reset role');connection.release();}
 });
 test('Google OAuth validates state and verified identity, sets local owner session',async()=>{
@@ -238,8 +238,8 @@ test('Google OAuth validates state and verified identity, sets local owner sessi
   const callback=()=>fetch(base+`/api/oauth/callback?state=${state}&code=test`,{redirect:'manual',headers:{'x-forwarded-host':'ticket.th.io.vn',cookie,'sec-fetch-site':'cross-site',origin:'https://accounts.google.com'}});
   assert.equal((await callback()).status,403);
   identity={email:'eric.scorp93@gmail.com',email_verified:false};assert.equal((await callback()).status,401);
-  identity={email:'eric.scorp93@gmail.com',email_verified:true};const success=await callback();assert.equal(success.status,302);assert.match(success.headers.get('set-cookie'),/th_mes=.*HttpOnly/);
-  assert.equal((await api('getSession',{},success.headers.getSetCookie().find(v=>v.startsWith('th_mes=')).split(';')[0])).body.isOwner,true);
+  identity={email:'eric.scorp93@gmail.com',email_verified:true};const success=await callback();assert.equal(success.status,302);assert.match(success.headers.get('set-cookie'),/th_ticket=.*HttpOnly/);
+  assert.equal((await api('getSession',{},success.headers.getSetCookie().find(v=>v.startsWith('th_ticket=')).split(';')[0])).body.isOwner,true);
   await pool.query("insert into portfolio.users(email,password,verified) values('eric.scorp93@gmail.com',extensions.crypt('attacker-password',extensions.gen_salt('bf',4)),false)");
   const attackerLogin=await api('login',{email:'eric.scorp93@gmail.com',password:'attacker-password'},'','th.io.vn');
   assert.equal(attackerLogin.status,200);
@@ -268,7 +268,7 @@ test('users comment across tickets; access history is administrator-only and red
  assert.equal(issue.status,200,JSON.stringify(issue.body));
  await verifiedPhoto(issue.body,userA,1);
  const before=(await api('readTicket',{id:issue.body.id},userA)).body;
- const comment=await api('addComment',{issueId:issue.body.id,text:'Bổ sung từ một user khác',author:'forged',authorUid:'mes-owner'},userB);
+ const comment=await api('addComment',{issueId:issue.body.id,text:'Bổ sung từ một user khác',author:'forged',authorUid:'ticket-owner'},userB);
  assert.equal(comment.status,200,JSON.stringify(comment.body));
  const after=(await api('readTicket',{id:issue.body.id},userA)).body;
  for(const field of ['subject','description','status','priority','createdBy','attachments'])assert.deepEqual(after[field],before[field]);
@@ -280,7 +280,7 @@ test('users comment across tickets; access history is administrator-only and red
  const log=(await api('getAccessLog',{username:'comment.b'},owner)).body.rows;
  assert.ok(log.some(e=>e.event==='page'&&e.ticket_id===issue.body.id));assert.ok(log.some(e=>e.event==='activateAccount'));
  assert.ok(!JSON.stringify(log).includes('never-log-this'));assert.ok(!JSON.stringify(log).includes(b.body.activationCode));assert.ok(!JSON.stringify(log).includes('test-comment-password'));
- const fetchAdmin=(path,cookie)=>fetch(base+'/api/mes/admin/'+path,{headers:{'x-forwarded-host':'ticket.th.io.vn',cookie}});
+ const fetchAdmin=(path,cookie)=>fetch(base+'/api/ticket/admin/'+path,{headers:{'x-forwarded-host':'ticket.th.io.vn',cookie}});
  assert.equal((await fetchAdmin('access-log',userB)).status,403);assert.equal((await fetchAdmin('storage',userB)).status,403);
  const storage=await fetchAdmin('storage',owner);assert.equal(storage.status,200);assert.equal((await storage.json()).primary,'internal');
  const mediaPath=`issues/${issue.body.id}/${issue.body.uploadSlots[0]}`;
@@ -288,10 +288,10 @@ test('users comment across tickets; access history is administrator-only and red
  const payload='0123456789'.repeat(1024);
  const uploaded=await fetch(base+grant.url,{method:'PUT',headers:{'x-forwarded-host':'ticket.th.io.vn','Content-Type':'video/mp4'},body:payload});assert.equal(uploaded.status,200);
  await api('attachFiles',{issueId:issue.body.id,files:[{slot:issue.body.uploadSlots[0],name:'evidence.mp4'}]},userA);
- const url=base+`/api/mes/attachments/${issue.body.id}/${issue.body.uploadSlots[0]}`;
+ const url=base+`/api/ticket/attachments/${issue.body.id}/${issue.body.uploadSlots[0]}`;
  const range=await fetch(url,{headers:{'x-forwarded-host':'ticket.th.io.vn',cookie:userB,range:'bytes=2-7'}});assert.equal(range.status,206);assert.equal(await range.text(),'234567');assert.match(range.headers.get('cache-control'),/private/);assert.match(range.headers.get('accept-ranges'),/bytes/);
  assert.equal((await fetch(url,{headers:{'x-forwarded-host':'ticket.th.io.vn'}})).status,200);
- const translated=await fetch(base+'/api/mes/translation',{method:'POST',headers:{'x-forwarded-host':'ticket.th.io.vn','Content-Type':'application/json',cookie:userB},body:JSON.stringify({id:issue.body.id})});assert.equal(translated.status,403);
+ const translated=await fetch(base+'/api/ticket/translation',{method:'POST',headers:{'x-forwarded-host':'ticket.th.io.vn','Content-Type':'application/json',cookie:userB},body:JSON.stringify({id:issue.body.id})});assert.equal(translated.status,403);
 });
 test('translation is explicit, cached and leaves original title, formatted content and history unchanged',async()=>{
  const owner=(await api('passwordLogin',{username:'hpham',password:'test-owner-password'})).cookie;
@@ -308,28 +308,28 @@ test('translation is explicit, cached and leaves original title, formatted conte
   }return originalFetch(url,options);
  };
  try{
-  const translate=()=>fetch(base+'/api/mes/translation',{method:'POST',headers:{'x-forwarded-host':'ticket.th.io.vn','Content-Type':'application/json',cookie:user},body:JSON.stringify({id:ticket.id})});
+  const translate=()=>fetch(base+'/api/ticket/translation',{method:'POST',headers:{'x-forwarded-host':'ticket.th.io.vn','Content-Type':'application/json',cookie:user},body:JSON.stringify({id:ticket.id})});
   const first=await translate();assert.equal(first.status,200,await first.clone().text());assert.equal((await first.json()).subject,'English title');assert.equal((await translate()).status,200);assert.equal(calls,1,'Unchanged content should reuse cached translation');
   assert.deepEqual((await api('readTicket',{id:ticket.id},user)).body,before);
  }finally{globalThis.fetch=originalFetch;if(oldKey===undefined)delete process.env.GOOGLE_TRANSLATE_API_KEY;else process.env.GOOGLE_TRANSLATE_API_KEY=oldKey;}
 });
 
 test('anonymous viewer reads tickets but cannot read accounts or write; layout preferences are private',async()=>{
- const owner='th_mes='+(await pool.query("select mes_private.open_account_session('mes-owner') result")).rows[0].result.sessionToken;
+ const owner='th_ticket='+(await pool.query("select ticket_private.open_account_session('ticket-owner') result")).rows[0].result.sessionToken;
  const listing=await api('read',{path:'issues'});assert.equal(listing.status,200,JSON.stringify(listing.body));
  for(const issue of listing.body.rows){assert.equal(issue.uploadSlots,undefined);assert.equal(issue.reporterUid,undefined);}
  for(const path of ['users','settings','dashboardPreferences','credentials'])assert.notEqual((await api('read',{path})).status,200);
  for(const name of ['createIssue','addComment','saveDashboardPreferences','getAccessLog','getProfile'])assert.notEqual((await api(name,{})).status,200);
  assert.equal((await api('saveDashboardPreferences',{hidden:['video','notices']},owner)).status,200);
  assert.deepEqual((await api('getDashboardPreferences',{},owner)).body.hidden,['video','notices']);
- const otherUid=(await pool.query("select id from mes_private.records where collection='users' and data->>'username'='comment.b'")).rows[0].id;
- const other='th_mes='+(await pool.query('select mes_private.open_account_session($1) result',[otherUid])).rows[0].result.sessionToken;
+ const otherUid=(await pool.query("select id from ticket_private.records where collection='users' and data->>'username'='comment.b'")).rows[0].id;
+ const other='th_ticket='+(await pool.query('select ticket_private.open_account_session($1) result',[otherUid])).rows[0].result.sessionToken;
  assert.deepEqual((await api('getDashboardPreferences',{},other)).body.hidden,[]);
- assert.equal((await api('saveDashboardPreferences',{hidden:['activity'],uid:'mes-owner'},other)).status,200);
+ assert.equal((await api('saveDashboardPreferences',{hidden:['activity'],uid:'ticket-owner'},other)).status,200);
  assert.deepEqual((await api('getDashboardPreferences',{},owner)).body.hidden,['video','notices']);
  assert.notEqual((await api('saveDashboardPreferences',{hidden:['invalid-widget']},owner)).status,200);
- const response=await fetch(base+'/api/mes/drive/callback?state=bad&code=bad',{headers:{'x-forwarded-host':'ticket.th.io.vn',referer:'https://accounts.google.com/'}});assert.equal(response.status,400);
- for(const path of ['drive/status','drive/connect','admin/storage'])assert.notEqual((await fetch(base+'/api/mes/'+path,{headers:{'x-forwarded-host':'ticket.th.io.vn'},redirect:'manual'})).status,200);
+ const response=await fetch(base+'/api/ticket/drive/callback?state=bad&code=bad',{headers:{'x-forwarded-host':'ticket.th.io.vn',referer:'https://accounts.google.com/'}});assert.equal(response.status,400);
+ for(const path of ['drive/status','drive/connect','admin/storage'])assert.notEqual((await fetch(base+'/api/ticket/'+path,{headers:{'x-forwarded-host':'ticket.th.io.vn'},redirect:'manual'})).status,200);
 });
 test('Drive uploads finish asynchronously and private cloud video supports public ticket byte ranges',async()=>{
  const {saveDriveCredentials}=await import('../drive-client.js');const {createHash}=await import('node:crypto');
@@ -345,85 +345,85 @@ test('Drive uploads finish asynchronously and private cloud video supports publi
   throw new Error('Unexpected Drive request');
  };
  try{
-  await pool.query("update public.mes_storage_settings set provider='drive' where id='main'");
-  const owner='th_mes='+(await pool.query("select mes_private.open_account_session('mes-owner') result")).rows[0].result.sessionToken;
-  const department=(await pool.query("select id from mes_private.records where collection='departments' limit 1")).rows[0].id;
-  const issue=await api('createIssue',{reporterUid:'mes-owner',departmentId:department,process:'Cloud upload',description:'Cloud range test'},owner);assert.equal(issue.status,200,JSON.stringify(issue.body));
+  await pool.query("update public.ticket_storage_settings set provider='drive' where id='main'");
+  const owner='th_ticket='+(await pool.query("select ticket_private.open_account_session('ticket-owner') result")).rows[0].result.sessionToken;
+  const department=(await pool.query("select id from ticket_private.records where collection='departments' limit 1")).rows[0].id;
+  const issue=await api('createIssue',{reporterUid:'ticket-owner',departmentId:department,process:'Cloud upload',description:'Cloud range test'},owner);assert.equal(issue.status,200,JSON.stringify(issue.body));
   const slot=issue.body.uploadSlots[0],path=`issues/${issue.body.id}/${slot}`,headers={'x-forwarded-host':'ticket.th.io.vn',cookie:owner,'Content-Type':'application/json'};
-  const start=await oldFetch(base+'/api/mes/uploads',{method:'POST',headers,body:JSON.stringify({kind:'ticket',path,type:'video/mp4',size:8})});assert.equal(start.status,200);const info=await start.json();
-  const patch=await oldFetch(base+'/api/mes/uploads/'+info.id,{method:'PATCH',headers:{...headers,'Content-Type':'application/octet-stream','Upload-Offset':'0'},body:'12345678'});assert.equal(patch.status,202);assert.equal((await patch.json()).processing,true);
-  let done=false;for(let i=0;i<100;i++){const status=await oldFetch(base+'/api/mes/uploads/'+info.id,{headers});const record=await status.json();assert.equal(status.status,200,JSON.stringify(record));if(record.complete){done=true;break;}await new Promise(r=>setTimeout(r,10));}assert.equal(done,true);
+  const start=await oldFetch(base+'/api/ticket/uploads',{method:'POST',headers,body:JSON.stringify({kind:'ticket',path,type:'video/mp4',size:8})});assert.equal(start.status,200);const info=await start.json();
+  const patch=await oldFetch(base+'/api/ticket/uploads/'+info.id,{method:'PATCH',headers:{...headers,'Content-Type':'application/octet-stream','Upload-Offset':'0'},body:'12345678'});assert.equal(patch.status,202);assert.equal((await patch.json()).processing,true);
+  let done=false;for(let i=0;i<100;i++){const status=await oldFetch(base+'/api/ticket/uploads/'+info.id,{headers});const record=await status.json();assert.equal(status.status,200,JSON.stringify(record));if(record.complete){done=true;break;}await new Promise(r=>setTimeout(r,10));}assert.equal(done,true);
   assert.equal((await api('attachFiles',{issueId:issue.body.id,files:[{slot,name:'cloud.mp4'}]},owner)).status,200);
-  const response=await oldFetch(base+`/api/mes/attachments/${issue.body.id}/${slot}`,{headers:{'x-forwarded-host':'ticket.th.io.vn',range:'bytes=0-3'}});assert.equal(response.status,206);assert.equal(await response.text(),'1234');assert.equal(response.headers.get('content-range'),'bytes 0-3/8');
-  assert.equal((await pool.query('select drive_id from public.mes_cloud_files where path=$1',[path])).rows[0].drive_id,'test-cloud-video');
- }finally{await pool.query("update public.mes_storage_settings set provider='local' where id='main'");global.fetch=oldFetch;if(oldToken===undefined)delete process.env.DRIVE_TOKEN_FILE;else process.env.DRIVE_TOKEN_FILE=oldToken;}
+  const response=await oldFetch(base+`/api/ticket/attachments/${issue.body.id}/${slot}`,{headers:{'x-forwarded-host':'ticket.th.io.vn',range:'bytes=0-3'}});assert.equal(response.status,206);assert.equal(await response.text(),'1234');assert.equal(response.headers.get('content-range'),'bytes 0-3/8');
+  assert.equal((await pool.query('select drive_id from public.ticket_cloud_files where path=$1',[path])).rows[0].drive_id,'test-cloud-video');
+ }finally{await pool.query("update public.ticket_storage_settings set provider='local' where id='main'");global.fetch=oldFetch;if(oldToken===undefined)delete process.env.DRIVE_TOKEN_FILE;else process.env.DRIVE_TOKEN_FILE=oldToken;}
 });
 test('monthly ticket numbers, direct public API and the 99-ticket limit preserve original IDs and history',async()=>{
  const previousBase=base,isolated=createApp(runtimePool,files).listen(0,'127.0.0.1');await new Promise(r=>isolated.once('listening',r));base=`http://127.0.0.1:${isolated.address().port}`;
  try {
- const owner='th_mes='+(await pool.query("select mes_private.open_account_session('mes-owner') result")).rows[0].result.sessionToken;
- const department=(await pool.query("select id from mes_private.records where collection='departments' limit 1")).rows[0].id;
- const created=await Promise.all(Array.from({length:4},()=>api('createIssue',{reporterUid:'mes-owner',departmentId:department,process:'Numbered ticket',description:'Ticket number concurrency test'},owner)));
+ const owner='th_ticket='+(await pool.query("select ticket_private.open_account_session('ticket-owner') result")).rows[0].result.sessionToken;
+ const department=(await pool.query("select id from ticket_private.records where collection='departments' limit 1")).rows[0].id;
+ const created=await Promise.all(Array.from({length:4},()=>api('createIssue',{reporterUid:'ticket-owner',departmentId:department,process:'Numbered ticket',description:'Ticket number concurrency test'},owner)));
  for(const value of created){assert.equal(value.status,200,JSON.stringify(value.body));await verifiedPhoto(value.body,owner);}
  const codes=created.map(r=>r.body.ticketNumber);assert.equal(new Set(codes).size,4);for(const code of codes)assert.match(code,/^TH\d{4}-\d{2}$/);
- const item=created[0].body;const response=await fetch(base+'/api/mes/tickets/'+item.ticketNumber,{headers:{'x-forwarded-host':'ticket.th.io.vn'}});assert.equal(response.status,200);const publicIssue=await response.json();assert.equal(publicIssue.id,item.id);assert.equal(publicIssue.ticketNumber,item.ticketNumber);assert.equal(publicIssue.uploadSlots,undefined);
- assert.equal((await fetch(base+'/api/mes/tickets/TH0000-99',{headers:{'x-forwarded-host':'ticket.th.io.vn'}})).status,404);
+ const item=created[0].body;const response=await fetch(base+'/api/ticket/tickets/'+item.ticketNumber,{headers:{'x-forwarded-host':'ticket.th.io.vn'}});assert.equal(response.status,200);const publicIssue=await response.json();assert.equal(publicIssue.id,item.id);assert.equal(publicIssue.ticketNumber,item.ticketNumber);assert.equal(publicIssue.uploadSlots,undefined);
+ assert.equal((await fetch(base+'/api/ticket/tickets/TH0000-99',{headers:{'x-forwarded-host':'ticket.th.io.vn'}})).status,404);
  const listing=await api('readBundle',{paths:[{path:'issues'}]});assert.ok(listing.body.snapshots.issues.rows.some(i=>i.id===item.id&&i.ticketNumber===item.ticketNumber));
  const db=await pool.connect();try{
   await db.query('begin');const month=(await db.query("select to_char(now() at time zone 'Asia/Ho_Chi_Minh','YYMM') period")).rows[0].period;
-  await db.query('update mes_private.ticket_months set allocated=98 where month_key=$1',[month]);
-  await db.query("insert into mes_private.records(collection,id,data) values('issues','month-limit-test','{}')");assert.equal((await db.query("select code from public.mes_ticket_codes where issue_id='month-limit-test'")).rows[0].code,'TH'+month+'-99');
-  await db.query('savepoint full_month');await assert.rejects(db.query("insert into mes_private.records(collection,id,data) values('issues','month-limit-overflow','{}')"),e=>e.code==='P0099');await db.query('rollback to savepoint full_month');
-  assert.equal((await db.query("select count(*)::int n from mes_private.records where collection='issues' and id='month-limit-overflow'")).rows[0].n,0);
+  await db.query('update ticket_private.ticket_months set allocated=98 where month_key=$1',[month]);
+  await db.query("insert into ticket_private.records(collection,id,data) values('issues','month-limit-test','{}')");assert.equal((await db.query("select code from public.ticket_codes where issue_id='month-limit-test'")).rows[0].code,'TH'+month+'-99');
+  await db.query('savepoint full_month');await assert.rejects(db.query("insert into ticket_private.records(collection,id,data) values('issues','month-limit-overflow','{}')"),e=>e.code==='P0099');await db.query('rollback to savepoint full_month');
+  assert.equal((await db.query("select count(*)::int n from ticket_private.records where collection='issues' and id='month-limit-overflow'")).rows[0].n,0);
   await db.query('rollback');
  }finally{db.release();}
  const currentMonth=(await pool.query("select to_char(now() at time zone 'Asia/Ho_Chi_Minh','YYMM') period")).rows[0].period;
- const allocated=(await pool.query('select allocated from mes_private.ticket_months where month_key=$1',[currentMonth])).rows[0].allocated;
- try{await pool.query('update mes_private.ticket_months set allocated=99 where month_key=$1',[currentMonth]);const denied=await api('createIssue',{reporterUid:'mes-owner',departmentId:department,process:'Full month',description:'Must not create ticket 100'},owner);assert.equal(denied.status,409,JSON.stringify(denied.body));assert.equal(denied.body.code,'P0099');assert.match(denied.body.error,/99 tickets/);}finally{await pool.query('update mes_private.ticket_months set allocated=$2 where month_key=$1',[currentMonth,allocated]);}
+ const allocated=(await pool.query('select allocated from ticket_private.ticket_months where month_key=$1',[currentMonth])).rows[0].allocated;
+ try{await pool.query('update ticket_private.ticket_months set allocated=99 where month_key=$1',[currentMonth]);const denied=await api('createIssue',{reporterUid:'ticket-owner',departmentId:department,process:'Full month',description:'Must not create ticket 100'},owner);assert.equal(denied.status,409,JSON.stringify(denied.body));assert.equal(denied.body.code,'P0099');assert.match(denied.body.error,/99 tickets/);}finally{await pool.query('update ticket_private.ticket_months set allocated=$2 where month_key=$1',[currentMonth,allocated]);}
  }finally{base=previousBase;await new Promise(r=>isolated.close(r));}
 });
 test('admin fully edits old tickets and replaces/removes files atomically; downloads preserve originals and history',async()=>{
  const previousBase=base,isolated=createApp(runtimePool,files).listen(0,'127.0.0.1');await new Promise(r=>isolated.once('listening',r));base=`http://127.0.0.1:${isolated.address().port}`;
  try{
- const owner='th_mes='+(await pool.query("select mes_private.open_account_session('mes-owner') result")).rows[0].result.sessionToken;
- const person=(await pool.query("select id from mes_private.records where collection='users' and data->>'username'='comment.b'")).rows[0].id;
- const user='th_mes='+(await pool.query('select mes_private.open_account_session($1) result',[person])).rows[0].result.sessionToken;
- const department=(await pool.query("select id from mes_private.records where collection='departments' limit 1")).rows[0].id;
- const created=await api('createIssue',{reporterUid:'mes-owner',departmentId:department,process:'Original process',description:'Original feedback with image'},owner);assert.equal(created.status,200,JSON.stringify(created.body));const id=created.body.id,path=`issues/${id}/${created.body.uploadSlots[0]}`;
+ const owner='th_ticket='+(await pool.query("select ticket_private.open_account_session('ticket-owner') result")).rows[0].result.sessionToken;
+ const person=(await pool.query("select id from ticket_private.records where collection='users' and data->>'username'='comment.b'")).rows[0].id;
+ const user='th_ticket='+(await pool.query('select ticket_private.open_account_session($1) result',[person])).rows[0].result.sessionToken;
+ const department=(await pool.query("select id from ticket_private.records where collection='departments' limit 1")).rows[0].id;
+ const created=await api('createIssue',{reporterUid:'ticket-owner',departmentId:department,process:'Original process',description:'Original feedback with image'},owner);assert.equal(created.status,200,JSON.stringify(created.body));const id=created.body.id,path=`issues/${id}/${created.body.uploadSlots[0]}`;
  const grant=await api('uploadUrl',{path},owner);const original=Buffer.from('Original image bytes');assert.equal((await fetch(base+grant.body.url,{method:'PUT',headers:{'x-forwarded-host':'ticket.th.io.vn','content-type':'image/png'},body:original})).status,200);
  assert.equal((await api('attachFiles',{issueId:id,files:[{slot:created.body.uploadSlots[0],name:'old.png'}]},owner)).status,200);
- await pool.query("update mes_private.records set data=jsonb_set(data,'{createdAt}',to_jsonb((extract(epoch from now()-interval '2 days')*1000)::bigint)) where collection='issues' and id=$1",[id]);
- const previous=(await api('readTicket',{id},owner)).body;const history=(await pool.query('select id,data from mes_private.records where collection=$1 order by seq',[`issues/${id}/timeline`])).rows;
+ await pool.query("update ticket_private.records set data=jsonb_set(data,'{createdAt}',to_jsonb((extract(epoch from now()-interval '2 days')*1000)::bigint)) where collection='issues' and id=$1",[id]);
+ const previous=(await api('readTicket',{id},owner)).body;const history=(await pool.query('select id,data from ticket_private.records where collection=$1 order by seq',[`issues/${id}/timeline`])).rows;
  assert.equal((await api('reserveTicketFiles',{id,indices:[0]},user)).status,403);assert.equal((await api('reserveTicketFiles',{id,indices:[0]})).status,401);
  const reserve=await api('reserveTicketFiles',{id,indices:[0,1]},owner);assert.equal(reserve.status,200,JSON.stringify(reserve.body));
  const headers={'x-forwarded-host':'ticket.th.io.vn',cookie:owner,'Content-Type':'application/json'};
  for(const file of reserve.body.files){
-  const start=await fetch(base+'/api/mes/uploads',{method:'POST',headers,body:JSON.stringify({kind:'ticket',path:file.path,type:'image/png',size:8})});assert.equal(start.status,200);const info=await start.json();assert.equal((await fetch(base+'/api/mes/uploads/'+info.id,{method:'PATCH',headers:{...headers,'Content-Type':'application/octet-stream','Upload-Offset':'0'},body:'newimage'})).status,200);
-  const preview=await fetch(base+`/api/mes/previews/ticket/${id}/${file.slot}`,{method:'PUT',headers:{...headers,'Content-Type':'image/jpeg'},body:Buffer.from([255,216,255,217])});assert.equal(preview.status,200,await preview.text());
+  const start=await fetch(base+'/api/ticket/uploads',{method:'POST',headers,body:JSON.stringify({kind:'ticket',path:file.path,type:'image/png',size:8})});assert.equal(start.status,200);const info=await start.json();assert.equal((await fetch(base+'/api/ticket/uploads/'+info.id,{method:'PATCH',headers:{...headers,'Content-Type':'application/octet-stream','Upload-Offset':'0'},body:'newimage'})).status,200);
+  const preview=await fetch(base+`/api/ticket/previews/ticket/${id}/${file.slot}`,{method:'PUT',headers:{...headers,'Content-Type':'image/jpeg'},body:Buffer.from([255,216,255,217])});assert.equal(preview.status,200,await preview.text());
  }
  const edit={id,baseUpdatedAt:previous.updatedAt,subject:'Complete admin edit',process:'New process',description:'New content',departmentId:department,issueTypeId:'general',reporterUid:person,status:'In progress',priority:'High',progress:55,assessment:'Assessment edited',occurrences:[],richDocument:{version:1,ops:[{insert:'New content '},{insert:{image:0}},{insert:{image:1}},{insert:'\n'}]},files:reserve.body.files.map((f,i)=>({path:f.path,slotIndex:i,name:`edited-${i}.png`}))};
  assert.equal((await api('saveTicketEdit',edit,user)).status,403);assert.equal((await api('saveTicketEdit',{...edit,files:[{path:'issues/other/unrelated',slotIndex:0,name:'bad.png'}]},owner)).status,403);
  const invalidHandling=await api('saveTicketEdit',{...edit,priority:'Forged'},owner);assert.equal(invalidHandling.status,403);assert.equal((await api('readTicket',{id},owner)).body.subject,previous.subject,'A late validation error rolls back text edits and timeline writes');
  const saved=await api('saveTicketEdit',edit,owner);assert.equal(saved.status,200,JSON.stringify(saved.body));const current=(await api('readTicket',{id},owner)).body;
  assert.equal(current.subject,'Complete admin edit');assert.equal(current.reporterUid,person);assert.equal(current.status,'In progress');assert.equal(current.progress,55);assert.equal(current.attachments.length,2);assert.equal(current.id,id);assert.equal(current.ticketNumber,created.body.ticketNumber);
- assert.deepEqual(await readFile(join(files,path)),original,'Replaced original bytes stay available for backups');assert.equal((await fetch(base+'/api/mes/attachments/'+path.split('/').slice(1).join('/'),{headers:{'x-forwarded-host':'ticket.th.io.vn'}})).status,403);
- const afterHistory=(await pool.query('select id,data from mes_private.records where collection=$1 order by seq',[`issues/${id}/timeline`])).rows;assert.deepEqual(afterHistory.slice(0,history.length),history);assert.ok(afterHistory.some(h=>h.data.before?.attachments?.some(f=>f.path===path)));
- const attachment=current.attachments[0];const download=await fetch(base+'/api/mes/attachments/'+attachment.path.split('/').slice(1).join('/')+'?download=1',{headers:{'x-forwarded-host':'ticket.th.io.vn'}});assert.equal(download.status,200);assert.match(download.headers.get('content-disposition'),/attachment;.*edited-0.png/);assert.equal(await download.text(),'newimage');
+ assert.deepEqual(await readFile(join(files,path)),original,'Replaced original bytes stay available for backups');assert.equal((await fetch(base+'/api/ticket/attachments/'+path.split('/').slice(1).join('/'),{headers:{'x-forwarded-host':'ticket.th.io.vn'}})).status,403);
+ const afterHistory=(await pool.query('select id,data from ticket_private.records where collection=$1 order by seq',[`issues/${id}/timeline`])).rows;assert.deepEqual(afterHistory.slice(0,history.length),history);assert.ok(afterHistory.some(h=>h.data.before?.attachments?.some(f=>f.path===path)));
+ const attachment=current.attachments[0];const download=await fetch(base+'/api/ticket/attachments/'+attachment.path.split('/').slice(1).join('/')+'?download=1',{headers:{'x-forwarded-host':'ticket.th.io.vn'}});assert.equal(download.status,200);assert.match(download.headers.get('content-disposition'),/attachment;.*edited-0.png/);assert.equal(await download.text(),'newimage');
  assert.equal((await api('saveTicketEdit',edit,owner)).status,409,'A stale edit cannot overwrite a newer version');
  const removal={...edit,baseUpdatedAt:current.updatedAt,richDocument:{version:1,ops:[{insert:'Keep one image '},{insert:{image:0}},{insert:'\n'}]},files:[{...edit.files[0],name:'renamed.png'}]};const removed=await api('saveTicketEdit',removal,owner);assert.equal(removed.status,200,JSON.stringify(removed.body));assert.equal((await api('readTicket',{id},owner)).body.attachments.length,1);assert.equal((await readFile(join(files,edit.files[1].path))).toString(),'newimage');
  }finally{base=previousBase;await new Promise(r=>isolated.close(r));}
 });
 test('appearance preferences are bounded, private per account, and persistent across sessions',async()=>{
  const pref=(name,data,cookie)=>api(name,data,cookie,'ticket.th.io.vn',{'x-forwarded-for':'192.0.2.40'});
- const owner='th_mes='+(await pool.query("select mes_private.open_account_session('mes-owner') result")).rows[0].result.sessionToken;
- const uid=(await pool.query("select id from mes_private.records where collection='users' and data->>'username'='comment.b'")).rows[0].id;
- const other='th_mes='+(await pool.query('select mes_private.open_account_session($1) result',[uid])).rows[0].result.sessionToken;
+ const owner='th_ticket='+(await pool.query("select ticket_private.open_account_session('ticket-owner') result")).rows[0].result.sessionToken;
+ const uid=(await pool.query("select id from ticket_private.records where collection='users' and data->>'username'='comment.b'")).rows[0].id;
+ const other='th_ticket='+(await pool.query('select ticket_private.open_account_session($1) result',[uid])).rows[0].result.sessionToken;
  for(const name of ['getAppearancePreferences','saveAppearancePreferences'])assert.notEqual((await pref(name,{font:'arial',size:18})).status,200);
  assert.notEqual((await pref('read',{path:'appearancePreferences'},owner)).status,200);
  assert.deepEqual((await pref('getAppearancePreferences',{},other)).body,{font:'calibri',size:14,custom:false});
- assert.equal((await pref('saveAppearancePreferences',{font:'georgia',size:18,uid:'mes-owner'},other)).status,200);
+ assert.equal((await pref('saveAppearancePreferences',{font:'georgia',size:18,uid:'ticket-owner'},other)).status,200);
  assert.deepEqual((await pref('getAppearancePreferences',{},owner)).body,{font:'calibri',size:14,custom:false});
- const fresh='th_mes='+(await pool.query('select mes_private.open_account_session($1) result',[uid])).rows[0].result.sessionToken;
+ const fresh='th_ticket='+(await pool.query('select ticket_private.open_account_session($1) result',[uid])).rows[0].result.sessionToken;
  assert.deepEqual((await pref('getAppearancePreferences',{},fresh)).body,{font:'georgia',size:18,custom:true});
  for(const data of [{font:'url(evil)',size:14},{font:'arial',size:999},{font:'arial',size:'18'},{font:'arial'},{size:14}])assert.notEqual((await pref('saveAppearancePreferences',data,other)).status,200);
  assert.deepEqual((await pref('getAppearancePreferences',{},other)).body,{font:'georgia',size:18,custom:true});
@@ -434,43 +434,43 @@ test('appearance preferences are bounded, private per account, and persistent ac
  assert.deepEqual((await pref('getAppearanceDefaults',{})).body,{font:'arial',size:16});
  assert.deepEqual((await pref('getAppearancePreferences',{},owner)).body,{font:'arial',size:16,custom:false});
  assert.deepEqual((await pref('getAppearancePreferences',{},other)).body,{font:'georgia',size:18,custom:true});
- assert.deepEqual((await pref('resetAppearancePreferences',{uid:'mes-owner'},other)).body,{font:'arial',size:16,custom:false});
+ assert.deepEqual((await pref('resetAppearancePreferences',{uid:'ticket-owner'},other)).body,{font:'arial',size:16,custom:false});
  assert.equal((await pref('saveAppearanceDefaults',{font:'calibri',size:14},owner)).status,200);
  assert.deepEqual((await pref('getAppearancePreferences',{},other)).body,{font:'calibri',size:14,custom:false});
 });
 test('content tabs publish bounded widgets and documents with owner/member/viewer permissions, revisions and retained history',async()=>{
  const previousBase=base,isolated=createApp(runtimePool,files).listen(0,'127.0.0.1');await new Promise(r=>isolated.once('listening',r));base=`http://127.0.0.1:${isolated.address().port}`;
  try{
- const owner='th_mes='+(await pool.query("select mes_private.open_account_session('mes-owner') result")).rows[0].result.sessionToken,uid=(await pool.query("select id from mes_private.records where collection='users' and data->>'username'='comment.b'")).rows[0].id,user='th_mes='+(await pool.query('select mes_private.open_account_session($1) result',[uid])).rows[0].result.sessionToken;
- const call=async(path,method='GET',data,cookie=owner)=>{const r=await fetch(base+'/api/mes/'+path,{method,headers:{'x-forwarded-host':'ticket.th.io.vn',cookie,'Content-Type':'application/json'},...(data?{body:JSON.stringify(data)}:{})});let body;try{body=await r.json();}catch{}return {status:r.status,body,headers:r.headers};};
+ const owner='th_ticket='+(await pool.query("select ticket_private.open_account_session('ticket-owner') result")).rows[0].result.sessionToken,uid=(await pool.query("select id from ticket_private.records where collection='users' and data->>'username'='comment.b'")).rows[0].id,user='th_ticket='+(await pool.query('select ticket_private.open_account_session($1) result',[uid])).rows[0].result.sessionToken;
+ const call=async(path,method='GET',data,cookie=owner)=>{const r=await fetch(base+'/api/ticket/'+path,{method,headers:{'x-forwarded-host':'ticket.th.io.vn',cookie,'Content-Type':'application/json'},...(data?{body:JSON.stringify(data)}:{})});let body;try{body=await r.json();}catch{}return {status:r.status,body,headers:r.headers};};
  assert.equal((await call('pages','POST',{title:'Denied'},user)).status,403);assert.equal((await call('pages','POST',{title:'Denied'},'')).status,401);
  const created=await call('pages','POST',{title:'Operations resources'});assert.equal(created.status,201,JSON.stringify(created.body));let p=created.body;assert.equal(p.active,false);assert.equal(p.visibility,'members');
  assert.equal((await call('pages/'+p.id,'GET',null,'')).status,404);
  const pdf=Buffer.from('%PDF-1.4\n% test document\n%%EOF');const reserved=await call('pages/media','POST',{name:'Training.pdf',type:'application/pdf',size:pdf.length});assert.equal(reserved.status,201);const id=reserved.body.id;
- const upload=await fetch(base+'/api/mes/uploads',{method:'POST',headers:{'x-forwarded-host':'ticket.th.io.vn',cookie:owner,'Content-Type':'application/json'},body:JSON.stringify({kind:'media',path:id,type:'application/pdf',size:pdf.length})});assert.equal(upload.status,200);const uploadId=(await upload.json()).id;assert.equal((await fetch(base+'/api/mes/uploads/'+uploadId,{method:'PATCH',headers:{'x-forwarded-host':'ticket.th.io.vn',cookie:owner,'Content-Type':'application/octet-stream','Upload-Offset':'0'},body:pdf})).status,200);
- assert.equal((await fetch(base+'/api/mes/media/'+id,{headers:{'x-forwarded-host':'ticket.th.io.vn'}})).status,404,'Unpublished page documents stay private');
- const make=(type,extra={})=>({id:crypto.randomUUID(),type,title:type,body:'Safe text',width:'half',tone:'default',links:[],media:[],...extra});const widgets=[make('heading'),make('links',{links:[{label:'Documentation',url:'https://example.com/manual'},{label:'Intranet',url:'http://192.168.1.5:8080/'},{label:'Drive',url:'Z:\\MES'},{label:'Site',url:'/page/internal'}]}),make('documents',{media:[id]})];
+ const upload=await fetch(base+'/api/ticket/uploads',{method:'POST',headers:{'x-forwarded-host':'ticket.th.io.vn',cookie:owner,'Content-Type':'application/json'},body:JSON.stringify({kind:'media',path:id,type:'application/pdf',size:pdf.length})});assert.equal(upload.status,200);const uploadId=(await upload.json()).id;assert.equal((await fetch(base+'/api/ticket/uploads/'+uploadId,{method:'PATCH',headers:{'x-forwarded-host':'ticket.th.io.vn',cookie:owner,'Content-Type':'application/octet-stream','Upload-Offset':'0'},body:pdf})).status,200);
+ assert.equal((await fetch(base+'/api/ticket/media/'+id,{headers:{'x-forwarded-host':'ticket.th.io.vn'}})).status,404,'Unpublished page documents stay private');
+ const make=(type,extra={})=>({id:crypto.randomUUID(),type,title:type,body:'Safe text',width:'half',tone:'default',links:[],media:[],...extra});const widgets=[make('heading'),make('links',{links:[{label:'Documentation',url:'https://example.com/manual'},{label:'Intranet',url:'http://192.168.1.5:8080/'},{label:'Drive',url:'Z:\\Ticket'},{label:'Site',url:'/page/internal'}]}),make('documents',{media:[id]})];
  assert.equal((await call('pages/'+p.id,'PUT',{...p,active:true,widgets},user)).status,403);
  assert.equal((await call('pages/'+p.id,'PUT',{...p,widgets:[make('links',{links:[{label:'Bad',url:'javascript:alert(1)'}]})]})).status,400);
  assert.equal((await call('pages/'+p.id,'PUT',{...p,widgets:[make('image',{media:[id]})]})).status,400);
  let saved=await call('pages/'+p.id,'PUT',{...p,active:true,widgets});assert.equal(saved.status,200,JSON.stringify(saved.body));p=saved.body;
  assert.deepEqual(p.widgets[1].links.map(l=>l.kind),['web','web','drive','web']);
  assert.equal((await call('pages/'+p.id,'GET',null,user)).status,200);assert.equal((await call('pages/'+p.id,'GET',null,'')).status,404);assert.equal((await call('pages','GET',null,'')).body.pages.some(x=>x.id===p.id),false);
- const memberDoc=await fetch(base+'/api/mes/media/'+id+'?inline=1',{headers:{'x-forwarded-host':'ticket.th.io.vn',cookie:user}});assert.equal(memberDoc.status,200);assert.equal(memberDoc.headers.get('content-type'),'application/pdf');assert.equal(memberDoc.headers.get('content-disposition'),null);assert.deepEqual(Buffer.from(await memberDoc.arrayBuffer()),pdf);
+ const memberDoc=await fetch(base+'/api/ticket/media/'+id+'?inline=1',{headers:{'x-forwarded-host':'ticket.th.io.vn',cookie:user}});assert.equal(memberDoc.status,200);assert.equal(memberDoc.headers.get('content-type'),'application/pdf');assert.equal(memberDoc.headers.get('content-disposition'),null);assert.deepEqual(Buffer.from(await memberDoc.arrayBuffer()),pdf);
  assert.equal((await call('pages/'+p.id,'PUT',{...p,revision:1})).status,409);
  saved=await call('pages/'+p.id,'PUT',{...p,visibility:'public'});assert.equal(saved.status,200);p=saved.body;assert.equal((await call('pages/'+p.id,'GET',null,'')).status,200);
- const download=await fetch(base+'/api/mes/media/'+id+'?download=1',{headers:{'x-forwarded-host':'ticket.th.io.vn'}});assert.equal(download.status,200);assert.match(download.headers.get('content-disposition'),/attachment;.*Training.pdf/);
+ const download=await fetch(base+'/api/ticket/media/'+id+'?download=1',{headers:{'x-forwarded-host':'ticket.th.io.vn'}});assert.equal(download.status,200);assert.match(download.headers.get('content-disposition'),/attachment;.*Training.pdf/);
  assert.equal((await call('workspace','POST',{action:'videoDelete',data:{id}})).status,409,'Playlist operations cannot remove page documents');
- assert.equal((await call('pages/'+p.id,'DELETE',{revision:p.revision},user)).status,403);assert.equal((await call('pages/'+p.id,'DELETE',{revision:p.revision})).status,200);assert.equal((await call('pages/'+p.id,'GET',null,'')).status,404);assert.equal((await fetch(base+'/api/mes/media/'+id,{headers:{'x-forwarded-host':'ticket.th.io.vn'}})).status,404);
- assert.deepEqual(await readFile(join(files,'media',id)),pdf);assert.equal((await pool.query('select count(*)::int n from public.mes_page_history where page_id=$1',[p.id])).rows[0].n,4);
+ assert.equal((await call('pages/'+p.id,'DELETE',{revision:p.revision},user)).status,403);assert.equal((await call('pages/'+p.id,'DELETE',{revision:p.revision})).status,200);assert.equal((await call('pages/'+p.id,'GET',null,'')).status,404);assert.equal((await fetch(base+'/api/ticket/media/'+id,{headers:{'x-forwarded-host':'ticket.th.io.vn'}})).status,404);
+ assert.deepEqual(await readFile(join(files,'media',id)),pdf);assert.equal((await pool.query('select count(*)::int n from public.ticket_page_history where page_id=$1',[p.id])).rows[0].n,4);
  }finally{base=previousBase;await new Promise(r=>isolated.close(r));}
 });
 
 test('creation API requires photo/video evidence before allocating a ticket',async()=>{
  const isolated=createApp(runtimePool,files).listen(0,'127.0.0.1');await new Promise(resolve=>isolated.once('listening',resolve));
- const cookie='th_mes='+(await pool.query("select mes_private.open_account_session('mes-owner') result")).rows[0].result.sessionToken;
+ const cookie='th_ticket='+(await pool.query("select ticket_private.open_account_session('ticket-owner') result")).rows[0].result.sessionToken;
  try{for(const evidence of [undefined,null,[],[null],[{name:'notes.pdf',type:'application/pdf',size:10}]]){
- const response=await fetch(`http://127.0.0.1:${isolated.address().port}/api/mes`,{method:'POST',headers:{'x-forwarded-host':'ticket.th.io.vn','Content-Type':'application/json',cookie},body:JSON.stringify({name:'createIssue',data:{evidence,occurrences:[{kind:'point',start:new Date().toISOString()}]}})});
+ const response=await fetch(`http://127.0.0.1:${isolated.address().port}/api/ticket`,{method:'POST',headers:{'x-forwarded-host':'ticket.th.io.vn','Content-Type':'application/json',cookie},body:JSON.stringify({name:'createIssue',data:{evidence,occurrences:[{kind:'point',start:new Date().toISOString()}]}})});
  assert.equal(response.status,400);assert.equal((await response.json()).code,'invalid-evidence');
  }}finally{await new Promise(resolve=>isolated.close(resolve));}
 });
@@ -478,62 +478,62 @@ test('creation API requires photo/video evidence before allocating a ticket',asy
 test('owner assigns admin/user; widget defaults inherit without overwriting personal layouts and Wi-Fi remains owner-only',async()=>{
  const previousBase=base,isolated=createApp(runtimePool,files).listen(0,'127.0.0.1');await new Promise(r=>isolated.once('listening',r));base=`http://127.0.0.1:${isolated.address().port}`;
  try{
- const session=async uid=>'th_mes='+(await pool.query('select mes_private.open_account_session($1) result',[uid])).rows[0].result.sessionToken;
- const owner=await session('mes-owner');assert.equal((await api('getSession',{},owner)).body.role,'owner');
+ const session=async uid=>'th_ticket='+(await pool.query('select ticket_private.open_account_session($1) result',[uid])).rows[0].result.sessionToken;
+ const owner=await session('ticket-owner');assert.equal((await api('getSession',{},owner)).body.role,'owner');
  const account=await api('manageUser',{operation:'create',username:'widgets.admin',displayName:'Widget administrator'},owner);assert.equal(account.status,200);
  const uid=account.body.uid,user=(await api('activateAccount',{username:'widgets.admin',activationCode:account.body.activationCode,password:'test-widget-password'})).cookie;
  assert.equal((await api('getSession',{},user)).body.isAdmin,false);
  assert.equal((await api('saveDashboardDefaults',{hidden:['incidents']},user)).status,403);
- assert.equal((await api('setAccountRole',{uid:'mes-owner',role:'user'},owner)).status,403);
+ assert.equal((await api('setAccountRole',{uid:'ticket-owner',role:'user'},owner)).status,403);
  assert.equal((await api('setAccountRole',{uid,role:'owner'},owner)).status,403);
  assert.equal((await api('setAccountRole',{uid,role:'admin'},user)).status,403);
  assert.equal((await api('setAccountRole',{uid,role:'admin'},owner)).status,200);
  assert.equal((await api('getSession',{},user)).status,401,'Role changes revoke old sessions');
  const admin=await session(uid);assert.equal((await api('getSession',{},admin)).body.isAdmin,true);assert.equal((await api('getSession',{},admin)).body.isOwner,false);
  assert.equal((await api('setAccountRole',{uid,role:'user'},admin)).status,403);
- assert.equal((await api('manageUser',{operation:'deactivate',uid:'mes-owner'},admin)).status,403);
+ assert.equal((await api('manageUser',{operation:'deactivate',uid:'ticket-owner'},admin)).status,403);
  const personalBefore=(await api('getDashboardPreferences',{},owner)).body;
  assert.equal((await api('saveDashboardDefaults',{hidden:['incidents','video']},admin)).status,200);
  assert.deepEqual((await api('getDashboardDefaults')).body.hidden,['incidents','video']);
  assert.deepEqual((await api('getDashboardPreferences',{},admin)).body,{hidden:['incidents','video'],customized:false});
  assert.deepEqual((await api('getDashboardPreferences',{},owner)).body,personalBefore,'Admin defaults must preserve existing personal layouts');
- assert.equal((await api('saveDashboardPreferences',{hidden:['incidents'],uid:'mes-owner'},admin)).status,200);
+ assert.equal((await api('saveDashboardPreferences',{hidden:['incidents'],uid:'ticket-owner'},admin)).status,200);
  assert.deepEqual((await api('getDashboardPreferences',{},owner)).body,personalBefore,'Cannot write another account preferences');
  assert.equal((await api('saveDashboardDefaults',{hidden:['video']},admin)).status,200);
  assert.deepEqual((await api('getDashboardPreferences',{},admin)).body.hidden,['incidents']);
  assert.deepEqual((await api('resetDashboardPreferences',{},admin)).body,{hidden:['video'],customized:false});
  assert.equal((await api('saveDashboardDefaults',{hidden:['not-a-widget']},admin)).status,403);
  for(const cookie of ['',admin])for(const [path,method,body]of [['wifi','GET'],['wifi/connect','POST',{ssid:'test',password:'secret-password'}],['wifi/confirm','POST',{id:'bad'}]]){
-  const response=await fetch(base+'/api/mes/'+path,{method,headers:{'x-forwarded-host':'ticket.th.io.vn',cookie,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});assert.notEqual(response.status,200);
+  const response=await fetch(base+'/api/ticket/'+path,{method,headers:{'x-forwarded-host':'ticket.th.io.vn',cookie,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});assert.notEqual(response.status,200);
  }
- const ownerWifi=await fetch(base+'/api/mes/wifi',{headers:{'x-forwarded-host':'ticket.th.io.vn',cookie:owner}});assert.equal(ownerWifi.status,200);assert.equal((await ownerWifi.json()).available,false,'No Pi broker in test environment');
- const blocked=await fetch(base+'/api/mes/wifi/connect',{method:'POST',headers:{'x-forwarded-host':'ticket.th.io.vn',cookie:owner,origin:'https://evil.test','Content-Type':'application/json'},body:'{}'});assert.equal(blocked.status,403);
+ const ownerWifi=await fetch(base+'/api/ticket/wifi',{headers:{'x-forwarded-host':'ticket.th.io.vn',cookie:owner}});assert.equal(ownerWifi.status,200);assert.equal((await ownerWifi.json()).available,false,'No Pi broker in test environment');
+ const blocked=await fetch(base+'/api/ticket/wifi/connect',{method:'POST',headers:{'x-forwarded-host':'ticket.th.io.vn',cookie:owner,origin:'https://evil.test','Content-Type':'application/json'},body:'{}'});assert.equal(blocked.status,403);
  assert.equal((await api('setAccountRole',{uid,role:'user'},owner)).status,200);assert.equal((await api('getSession',{},admin)).status,401);assert.equal((await api('getSession',{},await session(uid))).body.isAdmin,false);
  assert.equal((await api('saveDashboardDefaults',{hidden:[]},owner)).status,200);
  }finally{base=previousBase;await new Promise(r=>isolated.close(r));}
 });
 test('dashboard includes compact state history in the existing bundle without private timeline content',async()=>{
  const id='analysis-history-test',at=Date.now();
- await pool.query("insert into mes_private.records(collection,id,data) values('issues',$1,$2)",[id,{subject:'History projection',status:'Closed',priority:'Low',createdAt:at,resolvedAt:at+2000}]);
+ await pool.query("insert into ticket_private.records(collection,id,data) values('issues',$1,$2)",[id,{subject:'History projection',status:'Closed',priority:'Low',createdAt:at,resolvedAt:at+2000}]);
  const events=[{kind:'handling',text:'Status: Acknowledged → Awaiting information. Priority: Critical → High. PRIVATE NOTE',authorUid:'PRIVATE AUTHOR',createdAt:at+1000},{kind:'edit',before:{priority:'High',status:'Awaiting information',description:'PRIVATE BEFORE'},after:{priority:'Low',status:'Closed',assessment:'PRIVATE ASSESSMENT'},createdAt:at+2000},{kind:'comment',text:'PRIVATE COMMENT',createdAt:at+3000}];
- for(const [index,event]of events.entries())await pool.query('insert into mes_private.records(collection,id,data) values($1,$2,$3)',[`issues/${id}/timeline`,String(index),event]);
+ for(const [index,event]of events.entries())await pool.query('insert into ticket_private.records(collection,id,data) values($1,$2,$3)',[`issues/${id}/timeline`,String(index),event]);
  const listing=await api('readBundle',{paths:[{path:'issues'}]});assert.equal(listing.status,200);
  const item=listing.body.snapshots.issues.rows.find(i=>i.id===id);assert.equal(item.analysisHistory.length,2);
  assert.deepEqual(item.analysisHistory[0],{at:at+1000,beforePriority:'Critical',priority:'High',beforeStatus:'Acknowledged',status:'Awaiting information'});
  assert.equal(item.analysisHistory[1].status,'Closed');assert.ok(!JSON.stringify(item.analysisHistory).includes('PRIVATE'));
  assert.ok(!('authorUid' in item));
- await pool.query("delete from mes_private.records where (collection='issues' and id=$1) or collection=$2",[id,`issues/${id}/timeline`]);
+ await pool.query("delete from ticket_private.records where (collection='issues' and id=$1) or collection=$2",[id,`issues/${id}/timeline`]);
 });
 test('incident colors persist per authenticated account and reject invalid colors',async()=>{
  const pref=(name,data,cookie)=>api(name,data,cookie,'ticket.th.io.vn',{'x-forwarded-for':'192.0.2.83'});
- const owner='th_mes='+(await pool.query("select mes_private.open_account_session('mes-owner') result")).rows[0].result.sessionToken;
- const uid=(await pool.query("select id from mes_private.records where collection='users' and data->>'username'='comment.b'")).rows[0].id;
- const other='th_mes='+(await pool.query('select mes_private.open_account_session($1) result',[uid])).rows[0].result.sessionToken;
+ const owner='th_ticket='+(await pool.query("select ticket_private.open_account_session('ticket-owner') result")).rows[0].result.sessionToken;
+ const uid=(await pool.query("select id from ticket_private.records where collection='users' and data->>'username'='comment.b'")).rows[0].id;
+ const other='th_ticket='+(await pool.query('select ticket_private.open_account_session($1) result',[uid])).rows[0].result.sessionToken;
  for(const name of ['getIncidentColors','saveIncidentColors'])assert.notEqual((await pref(name,{departments:{}})).status,200);
  const value={line:'#a17c00',departments:{dept:'#428c91'}};
- assert.equal((await pref('saveIncidentColors',{...value,uid:'mes-owner'},other)).status,200);
+ assert.equal((await pref('saveIncidentColors',{...value,uid:'ticket-owner'},other)).status,200);
  assert.deepEqual((await pref('getIncidentColors',{},owner)).body,{});
- const fresh='th_mes='+(await pool.query('select mes_private.open_account_session($1) result',[uid])).rows[0].result.sessionToken;
+ const fresh='th_ticket='+(await pool.query('select ticket_private.open_account_session($1) result',[uid])).rows[0].result.sessionToken;
  assert.deepEqual((await pref('getIncidentColors',{},fresh)).body,value);
  for(const data of [{line:'red',departments:{}},{line:null,departments:{}},{departments:[]},{departments:{dept:'url(evil)'}},{departments:{dept:123}}])assert.notEqual((await pref('saveIncidentColors',data,other)).status,200);
  assert.deepEqual((await pref('getIncidentColors',{},other)).body,value);
@@ -544,7 +544,7 @@ test('remembered password login uses a private 30-day session and logout revokes
  const login=data=>request('passwordLogin',{username:'hpham',password:'test-owner-password',...data});
  const standard=await login({remember:false});assert.equal(standard.status,200,JSON.stringify(standard.body));assert.match(standard.headers.get('set-cookie'),/Max-Age=43200/);
  const remembered=await login({remember:true});assert.equal(remembered.status,200,JSON.stringify(remembered.body));const cookie=remembered.headers.get('set-cookie');assert.match(cookie,/Max-Age=2592000/);for(const flag of ['HttpOnly','Secure','SameSite=Lax'])assert.ok(cookie.includes(flag));assert.equal(remembered.body.sessionToken,undefined);assert.equal(remembered.body.sessionMaxAgeSeconds,undefined);
- async function remaining(session){const token=session.cookie.split('=')[1];return Number((await pool.query("select extract(epoch from expires_at-now()) seconds from mes_private.sessions where hash=$1",[hash(token)])).rows[0].seconds);}
+ async function remaining(session){const token=session.cookie.split('=')[1];return Number((await pool.query("select extract(epoch from expires_at-now()) seconds from ticket_private.sessions where hash=$1",[hash(token)])).rows[0].seconds);}
  assert.ok(await remaining(standard)<=43200);assert.ok(await remaining(remembered)>29*86400);
  const forged=await login({remember:'true',sessionMaxAgeSeconds:2592000});assert.match(forged.headers.get('set-cookie'),/Max-Age=43200/);
  assert.equal((await request('getSession',{},remembered.cookie)).status,200);
@@ -553,10 +553,10 @@ test('remembered password login uses a private 30-day session and logout revokes
  assert.equal((await request('getSession',{},standard.cookie)).status,200);
 });
 test('metadata-only and document-only drafts stay hidden until a real image or video is attached',async()=>{
- const owner='th_mes='+(await pool.query("select mes_private.open_account_session('mes-owner') result")).rows[0].result.sessionToken;
- const department=(await pool.query("select id from mes_private.records where collection='departments' limit 1")).rows[0].id;
+ const owner='th_ticket='+(await pool.query("select ticket_private.open_account_session('ticket-owner') result")).rows[0].result.sessionToken;
+ const department=(await pool.query("select id from ticket_private.records where collection='departments' limit 1")).rows[0].id;
  const request=(name,data={},cookie=owner)=>api(name,data,cookie,'ticket.th.io.vn',{'x-forwarded-for':'192.0.2.86'});
- const created=await request('createIssue',{reporterUid:'mes-owner',departmentId:department,process:'Upload interrupted',description:'Photo metadata alone cannot publish this ticket'});assert.equal(created.status,200,JSON.stringify(created.body));const draft=created.body;assert.equal(draft.pendingEvidence,true);
+ const created=await request('createIssue',{reporterUid:'ticket-owner',departmentId:department,process:'Upload interrupted',description:'Photo metadata alone cannot publish this ticket'});assert.equal(created.status,200,JSON.stringify(created.body));const draft=created.body;assert.equal(draft.pendingEvidence,true);
  for(const cookie of ['',owner]){assert.ok(!(await request('read',{path:'issues'},cookie)).body.rows.some(i=>i.id===draft.id));assert.ok(!(await request('readBundle',{paths:[{path:'issues'}]},cookie)).body.snapshots.issues.rows.some(i=>i.id===draft.id));assert.notEqual((await request('readTicket',{id:draft.id},cookie)).status,200);}
  const fake=await request('attachFiles',{issueId:draft.id,files:[{slot:draft.uploadSlots[0],name:'fake.png',type:'image/png',size:100}]});assert.equal(fake.status,400);
  const path=`issues/${draft.id}/${draft.uploadSlots[0]}`,grant=await request('uploadUrl',{path});assert.equal(grant.status,200);
@@ -568,47 +568,47 @@ test('metadata-only and document-only drafts stay hidden until a real image or v
  const edit=await request('saveTicketEdit',{id:draft.id,files:[]});assert.notEqual(edit.status,200);assert.ok((await request('readTicket',{id:draft.id})).body.attachments.some(f=>f.type==='image/png'));
 });
 test('only the requester can complete private pending tickets and publish without changing handling history',async()=>{
- const uid=(await pool.query("select id from mes_private.records where collection='users' and data->>'username'='comment.b'")).rows[0].id;
- const owner='th_mes='+(await pool.query("select mes_private.open_account_session('mes-owner') result")).rows[0].result.sessionToken,user='th_mes='+(await pool.query('select mes_private.open_account_session($1) result',[uid])).rows[0].result.sessionToken;
+ const uid=(await pool.query("select id from ticket_private.records where collection='users' and data->>'username'='comment.b'")).rows[0].id;
+ const owner='th_ticket='+(await pool.query("select ticket_private.open_account_session('ticket-owner') result")).rows[0].result.sessionToken,user='th_ticket='+(await pool.query('select ticket_private.open_account_session($1) result',[uid])).rows[0].result.sessionToken;
  const request=(name,data={},cookie=user)=>api(name,data,cookie,'ticket.th.io.vn',{'x-forwarded-for':'192.0.2.87'});
- const department=(await pool.query("select id from mes_private.records where collection='departments' limit 1")).rows[0].id;
+ const department=(await pool.query("select id from ticket_private.records where collection='departments' limit 1")).rows[0].id;
  const created=await request('createIssue',{reporterUid:uid,departmentId:department,process:'Pending station',description:'MO 1234 serial ABC issue requiring evidence'});assert.equal(created.status,200,JSON.stringify(created.body));const id=created.body.id;
  const listing=await request('getMyPendingTickets');assert.equal(listing.status,200,JSON.stringify(listing.body));let pending=listing.body.rows.find(r=>r.id===id);assert.ok(pending);assert.equal(pending.submissionState,'Waiting for completion');assert.ok(pending.missingRequirements.includes('Photo or video'));assert.equal(pending.uploadSlots,undefined);
  assert.notEqual((await request('getMyPendingTickets',{},'')).status,200);assert.ok(!(await request('getMyPendingTickets',{},owner)).body.rows.some(r=>r.id===id));assert.notEqual((await request('reservePendingFiles',{id,count:1},owner)).status,200);
- await pool.query("update mes_private.records set data=data||jsonb_build_object('createdAt',(extract(epoch from now()-interval '4 days')*1000)::bigint,'status','Closed','priority','High') where collection='issues' and id=$1",[id]);
+ await pool.query("update ticket_private.records set data=data||jsonb_build_object('createdAt',(extract(epoch from now()-interval '4 days')*1000)::bigint,'status','Closed','priority','High') where collection='issues' and id=$1",[id]);
  pending=(await request('getMyPendingTickets')).body.rows.find(r=>r.id===id);
  const slot=await request('reservePendingFiles',{id,count:1});assert.equal(slot.status,200,JSON.stringify(slot.body));const path=slot.body.files[0].path;
  const grant=await request('uploadUrl',{path});assert.equal(grant.status,200,JSON.stringify(grant.body));assert.equal((await fetch(base+grant.body.url,{method:'PUT',headers:{'x-forwarded-host':'ticket.th.io.vn','x-forwarded-for':'192.0.2.87','content-type':'image/png'},body:'uploaded evidence'})).status,200);
- const data={id,occurrences:[{kind:'point',start:new Date().toISOString()}],baseUpdatedAt:pending.updatedAt,process:'Updated OP 20',departmentId:department,description:'MO 1234 serial ABC updated evidence',richDocument:{version:1,ops:[{insert:'MO 1234 serial ABC updated evidence\n'}]},files:[{path,name:'evidence.png'}],status:'New',priority:'Critical',reporterUid:'mes-owner'};
+ const data={id,occurrences:[{kind:'point',start:new Date().toISOString()}],baseUpdatedAt:pending.updatedAt,process:'Updated OP 20',departmentId:department,description:'MO 1234 serial ABC updated evidence',richDocument:{version:1,ops:[{insert:'MO 1234 serial ABC updated evidence\n'}]},files:[{path,name:'evidence.png'}],status:'New',priority:'Critical',reporterUid:'ticket-owner'};
  assert.notEqual((await request('completePendingTicket',data,owner)).status,200);
  assert.notEqual((await request('completePendingTicket',{...data,files:[]})).status,200);
  assert.ok(!(await request('read',{path:'issues'},'')).body.rows.some(r=>r.id===id));
  const saved=await request('completePendingTicket',data);assert.equal(saved.status,200,JSON.stringify(saved.body));assert.equal(saved.body.published,true);
- assert.ok(!(await request('getMyPendingTickets')).body.rows.some(r=>r.id===id));const published=await request('readTicket',{id},'');assert.equal(published.status,200);assert.equal(published.body.status,'Closed');assert.equal(published.body.priority,'High');assert.equal(published.body.process,'Updated OP 20');assert.equal(published.body.createdAt,pending.createdAt);assert.ok((await pool.query("select 1 from mes_private.records where collection=$1 and data->>'kind'='supplemented'",[`issues/${id}/timeline`])).rowCount>0);
+ assert.ok(!(await request('getMyPendingTickets')).body.rows.some(r=>r.id===id));const published=await request('readTicket',{id},'');assert.equal(published.status,200);assert.equal(published.body.status,'Closed');assert.equal(published.body.priority,'High');assert.equal(published.body.process,'Updated OP 20');assert.equal(published.body.createdAt,pending.createdAt);assert.ok((await pool.query("select 1 from ticket_private.records where collection=$1 and data->>'kind'='supplemented'",[`issues/${id}/timeline`])).rowCount>0);
  const legacyId='legacy-waiting-fixture',legacy={reporterUid:uid,departmentId:department,process:'',description:'MO legacy requiring completion',status:'New',priority:'Medium',createdAt:123,updatedAt:123,attachments:[]};
- await pool.query("insert into mes_private.records(collection,id,data) values('issues',$1,$2)",[legacyId,legacy]);await pool.query('insert into mes_private.pending_ticket_legacy values($1)',[legacyId]);
- assert.deepEqual((await pool.query("select data from mes_private.records where collection='issues' and id=$1",[legacyId])).rows[0].data,legacy,'Queueing preserves original ticket JSON exactly');
+ await pool.query("insert into ticket_private.records(collection,id,data) values('issues',$1,$2)",[legacyId,legacy]);await pool.query('insert into ticket_private.pending_ticket_legacy values($1)',[legacyId]);
+ assert.deepEqual((await pool.query("select data from ticket_private.records where collection='issues' and id=$1",[legacyId])).rows[0].data,legacy,'Queueing preserves original ticket JSON exactly');
  const oldPending=(await request('getMyPendingTickets')).body.rows.find(r=>r.id===legacyId);assert.ok(oldPending);assert.ok(oldPending.missingRequirements.includes('Process / Station'));assert.ok(!(await request('read',{path:'issues'},'')).body.rows.some(r=>r.id===legacyId));
  const newSlot=await request('reservePendingFiles',{id:legacyId,count:1}),newPath=newSlot.body.files[0].path,newGrant=await request('uploadUrl',{path:newPath});assert.equal(newGrant.status,200,JSON.stringify(newGrant.body));
  assert.equal((await fetch(base+newGrant.body.url,{method:'PUT',headers:{'x-forwarded-host':'ticket.th.io.vn','x-forwarded-for':'192.0.2.87','content-type':'image/png'},body:'legacy evidence'})).status,200);
- const oldSaved=await request('completePendingTicket',{...data,id:legacyId,baseUpdatedAt:123,files:[{path:newPath,name:'legacy.png'}]});assert.equal(oldSaved.status,200,JSON.stringify(oldSaved.body));assert.equal((await pool.query('select 1 from mes_private.pending_ticket_legacy where issue_id=$1',[legacyId])).rowCount,0);assert.equal((await request('readTicket',{id:legacyId},'')).status,200);
+ const oldSaved=await request('completePendingTicket',{...data,id:legacyId,baseUpdatedAt:123,files:[{path:newPath,name:'legacy.png'}]});assert.equal(oldSaved.status,200,JSON.stringify(oldSaved.body));assert.equal((await pool.query('select 1 from ticket_private.pending_ticket_legacy where issue_id=$1',[legacyId])).rowCount,0);assert.equal((await request('readTicket',{id:legacyId},'')).status,200);
 
 });
 test('notification inboxes, templates, media and schedules enforce account/admin boundaries',async()=>{
- const users=(await pool.query("select id,data->>'username' username from mes_private.records where collection='users' and data->>'username' in ('comment.a','comment.b')")).rows;
+ const users=(await pool.query("select id,data->>'username' username from ticket_private.records where collection='users' and data->>'username' in ('comment.a','comment.b')")).rows;
  const a=users.find(u=>u.username==='comment.a').id,b=users.find(u=>u.username==='comment.b').id;
- await pool.query("update mes_private.credentials set role='admin' where uid=$1",[b]);
- const session=async uid=>'th_mes='+(await pool.query('select mes_private.open_account_session($1) result',[uid])).rows[0].result.sessionToken;
- const owner=await session('mes-owner'),user=await session(a),admin=await session(b);
+ await pool.query("update ticket_private.credentials set role='admin' where uid=$1",[b]);
+ const session=async uid=>'th_ticket='+(await pool.query('select ticket_private.open_account_session($1) result',[uid])).rows[0].result.sessionToken;
+ const owner=await session('ticket-owner'),user=await session(a),admin=await session(b);
  const request=(name,data={},cookie=admin)=>api(name,data,cookie,'ticket.th.io.vn',{'x-forwarded-for':'192.0.2.91'});
  try{
   for(const action of ['getNotifications','getNotificationAdmin','markAllNotificationsRead'])assert.notEqual((await request(action,{},'')).status,200);
   assert.notEqual((await request('getNotificationAdmin',{},user)).status,200);
   const settings=await request('getNotificationAdmin');assert.equal(settings.status,200,JSON.stringify(settings.body));assert.equal(settings.body.rules.pending.time,'08:00');
   const reservation=await request('reserveNotificationMedia',{title:'Notification image',type:'image/png',size:8});assert.equal(reservation.status,200,JSON.stringify(reservation.body));const mediaId=reservation.body.id;
-  const post=async(cookie)=>fetch(base+'/api/mes/uploads',{method:'POST',headers:{'x-forwarded-host':'ticket.th.io.vn','x-forwarded-for':'192.0.2.91',cookie,'content-type':'application/json'},body:JSON.stringify({kind:'media',path:mediaId,type:'image/png',size:8})});
-  assert.notEqual((await post(user)).status,200);let response=await post(admin);assert.equal(response.status,200);const upload=await response.json();response=await fetch(base+'/api/mes/uploads/'+upload.id,{method:'PATCH',headers:{'x-forwarded-host':'ticket.th.io.vn','x-forwarded-for':'192.0.2.91',cookie:admin,'content-type':'application/octet-stream','upload-offset':'0'},body:'png-data'});assert.equal(response.status,200,await response.text());
-  const mediaURL=base+'/api/mes/media/'+mediaId,mediaGet=cookie=>fetch(mediaURL,{headers:{'x-forwarded-host':'ticket.th.io.vn','x-forwarded-for':'192.0.2.91',...(cookie?{cookie}:{})}});
+  const post=async(cookie)=>fetch(base+'/api/ticket/uploads',{method:'POST',headers:{'x-forwarded-host':'ticket.th.io.vn','x-forwarded-for':'192.0.2.91',cookie,'content-type':'application/json'},body:JSON.stringify({kind:'media',path:mediaId,type:'image/png',size:8})});
+  assert.notEqual((await post(user)).status,200);let response=await post(admin);assert.equal(response.status,200);const upload=await response.json();response=await fetch(base+'/api/ticket/uploads/'+upload.id,{method:'PATCH',headers:{'x-forwarded-host':'ticket.th.io.vn','x-forwarded-for':'192.0.2.91',cookie:admin,'content-type':'application/octet-stream','upload-offset':'0'},body:'png-data'});assert.equal(response.status,200,await response.text());
+  const mediaURL=base+'/api/ticket/media/'+mediaId,mediaGet=cookie=>fetch(mediaURL,{headers:{'x-forwarded-host':'ticket.th.io.vn','x-forwarded-for':'192.0.2.91',...(cookie?{cookie}:{})}});
   assert.notEqual((await mediaGet('')).status,200);assert.notEqual((await mediaGet(user)).status,200);
   const content={title:'Private notice test',description:'Personal notification',faultName:'Network error',faultMode:'Intermittent',icon:'warning',severity:'warning',media:[mediaId]};
   assert.notEqual((await request('saveNotificationTemplate',{name:'Denied',content},user)).status,200);
@@ -617,42 +617,42 @@ test('notification inboxes, templates, media and schedules enforce account/admin
   const sent=await request('sendNotification',{content,audience:'selected',uids:[a],channels:['in_app','browser'],repeat:'none'});assert.equal(sent.status,200,JSON.stringify(sent.body));
   const inbox=await request('getNotifications',{},user);assert.equal(inbox.status,200,JSON.stringify(inbox.body));const notice=inbox.body.rows.find(n=>n.content.title===content.title);assert.ok(notice);assert.equal(notice.recipient_uid,undefined);assert.ok(inbox.body.media.some(m=>m.id===mediaId));assert.equal((await mediaGet(user)).status,200);
   assert.ok(!(await request('getNotifications',{},owner)).body.rows.some(n=>n.id===notice.id));
-  await request('markNotificationRead',{id:String(notice.id),uid:a},admin);assert.equal((await pool.query('select read_at from mes_private.notifications where id=$1',[notice.id])).rows[0].read_at,null);
-  await request('markNotificationRead',{id:String(notice.id)},user);assert.ok((await pool.query('select read_at from mes_private.notifications where id=$1',[notice.id])).rows[0].read_at);
+  await request('markNotificationRead',{id:String(notice.id),uid:a},admin);assert.equal((await pool.query('select read_at from ticket_private.notifications where id=$1',[notice.id])).rows[0].read_at,null);
+  await request('markNotificationRead',{id:String(notice.id)},user);assert.ok((await pool.query('select read_at from ticket_private.notifications where id=$1',[notice.id])).rows[0].read_at);
   const broadcast=await request('sendNotification',{content:{...content,title:'Broadcast notice',media:[]},audience:'all',uids:[],channels:['in_app'],repeat:'none'});assert.equal(broadcast.status,200);
-  const bNotice=(await request('getNotifications',{},admin)).body.rows.find(n=>n.content.title==='Broadcast notice');assert.ok(bNotice);await request('markAllNotificationsRead',{},user);assert.equal((await pool.query('select read_at from mes_private.notifications where id=$1',[bNotice.id])).rows[0].read_at,null);
+  const bNotice=(await request('getNotifications',{},admin)).body.rows.find(n=>n.content.title==='Broadcast notice');assert.ok(bNotice);await request('markAllNotificationsRead',{},user);assert.equal((await pool.query('select read_at from ticket_private.notifications where id=$1',[bNotice.id])).rows[0].read_at,null);
   const future=await request('sendNotification',{content:{...content,title:'Scheduled notice',media:[]},audience:'selected',uids:[a],channels:['in_app'],repeat:'daily',sendAt:'2030-01-01T01:00:00Z'});assert.equal(future.status,200,JSON.stringify(future.body));
-  assert.equal((await pool.query("select count(*)::int n from mes_private.notifications where event_key like $1",['job:'+future.body.id+':%'])).rows[0].n,0);
-  for(let i=0;i<2;i++)await runtimePool.query('select public.mes_notifications_tick($1)',['2030-01-01T01:00:00Z']);assert.equal((await pool.query("select count(*)::int n from mes_private.notifications where event_key like $1",['job:'+future.body.id+':%'])).rows[0].n,1);
-  await pool.query('select public.mes_notifications_tick($1)',['2030-01-02T01:00:00Z']);assert.equal((await pool.query("select count(*)::int n from mes_private.notifications where event_key like $1",['job:'+future.body.id+':%'])).rows[0].n,2);
-  await request('cancelNotificationJob',{id:future.body.id});await pool.query('select public.mes_notifications_tick($1)',['2030-01-03T01:00:00Z']);assert.equal((await pool.query("select count(*)::int n from mes_private.notifications where event_key like $1",['job:'+future.body.id+':%'])).rows[0].n,2);
+  assert.equal((await pool.query("select count(*)::int n from ticket_private.notifications where event_key like $1",['job:'+future.body.id+':%'])).rows[0].n,0);
+  for(let i=0;i<2;i++)await runtimePool.query('select public.ticket_notifications_tick($1)',['2030-01-01T01:00:00Z']);assert.equal((await pool.query("select count(*)::int n from ticket_private.notifications where event_key like $1",['job:'+future.body.id+':%'])).rows[0].n,1);
+  await pool.query('select public.ticket_notifications_tick($1)',['2030-01-02T01:00:00Z']);assert.equal((await pool.query("select count(*)::int n from ticket_private.notifications where event_key like $1",['job:'+future.body.id+':%'])).rows[0].n,2);
+  await request('cancelNotificationJob',{id:future.body.id});await pool.query('select public.ticket_notifications_tick($1)',['2030-01-03T01:00:00Z']);assert.equal((await pool.query("select count(*)::int n from ticket_private.notifications where event_key like $1",['job:'+future.body.id+':%'])).rows[0].n,2);
   const rescheduled=await request('updateNotificationJob',{id:future.body.id,content:{...content,title:'Changed schedule',media:[]},audience:'selected',uids:[a],channels:['in_app'],repeat:'none',sendAt:'2032-01-01T01:00:00Z'});assert.equal(rescheduled.status,200,JSON.stringify(rescheduled.body));
-  await pool.query('select public.mes_notifications_tick($1)',['2032-01-01T01:00:00Z']);assert.equal((await pool.query("select count(*)::int n from mes_private.notifications where event_key like $1",['job:'+future.body.id+':%'])).rows[0].n,3);
+  await pool.query('select public.ticket_notifications_tick($1)',['2032-01-01T01:00:00Z']);assert.equal((await pool.query("select count(*)::int n from ticket_private.notifications where event_key like $1",['job:'+future.body.id+':%'])).rows[0].n,3);
   assert.notEqual((await request('sendNotification',{content,audience:'all',uids:[],channels:['in_app'],repeat:'daily',sendAt:'-infinity'})).status,200);
   assert.notEqual((await request('deleteNotificationTemplate',{id:settings.body.rules.pending.templateId})).status,200);
- }finally{await pool.query("update mes_private.credentials set role='user' where uid=$1",[b]);}
+ }finally{await pool.query("update ticket_private.credentials set role='user' where uid=$1",[b]);}
 });
 test('incident time is mandatory, pending reminders deduplicate daily, and ticket updates notify the requester',async()=>{
- const uid=(await pool.query("select id from mes_private.records where collection='users' and data->>'username'='comment.a'")).rows[0].id;
- const session=async id=>'th_mes='+(await pool.query('select mes_private.open_account_session($1) result',[id])).rows[0].result.sessionToken;
- const owner=await session('mes-owner'),user=await session(uid),department=(await pool.query("select id from mes_private.records where collection='departments' limit 1")).rows[0].id;
+ const uid=(await pool.query("select id from ticket_private.records where collection='users' and data->>'username'='comment.a'")).rows[0].id;
+ const session=async id=>'th_ticket='+(await pool.query('select ticket_private.open_account_session($1) result',[id])).rows[0].result.sessionToken;
+ const owner=await session('ticket-owner'),user=await session(uid),department=(await pool.query("select id from ticket_private.records where collection='departments' limit 1")).rows[0].id;
  const request=(name,data={},cookie=owner)=>api(name,data,cookie,'ticket.th.io.vn',{'x-forwarded-for':'192.0.2.92'});
- for(const occurrences of [undefined,[],[{kind:'point',start:'invalid'}],[{kind:'range',start:'2026-10-26T10:00:00Z',end:'2026-10-25T10:00:00Z'}]]){const response=await fetch(base+'/api/mes',{method:'POST',headers:{'x-forwarded-host':'ticket.th.io.vn','x-forwarded-for':'192.0.2.92',cookie:user,'content-type':'application/json'},body:JSON.stringify({name:'createIssue',data:{occurrences,evidence:[{name:'image.png',size:8,type:'image/png'}]}})});assert.equal(response.status,400);assert.equal((await response.json()).code,'invalid-incident-time');}
+ for(const occurrences of [undefined,[],[{kind:'point',start:'invalid'}],[{kind:'range',start:'2026-10-26T10:00:00Z',end:'2026-10-25T10:00:00Z'}]]){const response=await fetch(base+'/api/ticket',{method:'POST',headers:{'x-forwarded-host':'ticket.th.io.vn','x-forwarded-for':'192.0.2.92',cookie:user,'content-type':'application/json'},body:JSON.stringify({name:'createIssue',data:{occurrences,evidence:[{name:'image.png',size:8,type:'image/png'}]}})});assert.equal(response.status,400);assert.equal((await response.json()).code,'invalid-incident-time');}
  const created=await request('createIssue',{reporterUid:uid,departmentId:department,process:'OP notice',description:'MO 123 notification lifecycle'},user);assert.equal(created.status,200,JSON.stringify(created.body));
  const config=(await request('getNotificationAdmin')).body.rules.pending;const rule={...config,time:'08:00',minDays:0,days:['1'],channels:['in_app','browser']};assert.equal((await request('saveNotificationRule',{id:'pending',config:rule})).status,200);
  assert.notEqual((await request('saveNotificationRule',{id:'pending',config:{...rule,time:'99:00'}})).status,200);assert.notEqual((await request('saveNotificationRule',{id:'pending',config:{...rule,days:[]}})).status,200);
- await pool.query('select public.mes_notifications_tick($1)',['2031-01-06T00:59:00Z']);const event='pending:'+uid+':2031-01-06';assert.equal((await pool.query('select count(*)::int n from mes_private.notifications where recipient_uid=$1 and event_key=$2',[uid,event])).rows[0].n,0);
- await pool.query('select public.mes_notifications_tick($1)',['2031-01-06T01:00:00Z']);await pool.query('select public.mes_notifications_tick($1)',['2031-01-06T05:00:00Z']);assert.equal((await pool.query('select count(*)::int n from mes_private.notifications where recipient_uid=$1 and event_key=$2',[uid,event])).rows[0].n,1);
- await pool.query('select public.mes_notifications_tick($1)',['2031-01-07T01:00:00Z']);assert.equal((await pool.query('select count(*)::int n from mes_private.notifications where recipient_uid=$1 and event_key=$2',[uid,'pending:'+uid+':2031-01-07'])).rows[0].n,0,'Unselected weekdays must not send reminders');
- await verifiedPhoto(created.body,user);const before=(await pool.query("select count(*)::int n from mes_private.notifications where recipient_uid=$1 and ticket_id=$2",[uid,created.body.id])).rows[0].n;
+ await pool.query('select public.ticket_notifications_tick($1)',['2031-01-06T00:59:00Z']);const event='pending:'+uid+':2031-01-06';assert.equal((await pool.query('select count(*)::int n from ticket_private.notifications where recipient_uid=$1 and event_key=$2',[uid,event])).rows[0].n,0);
+ await pool.query('select public.ticket_notifications_tick($1)',['2031-01-06T01:00:00Z']);await pool.query('select public.ticket_notifications_tick($1)',['2031-01-06T05:00:00Z']);assert.equal((await pool.query('select count(*)::int n from ticket_private.notifications where recipient_uid=$1 and event_key=$2',[uid,event])).rows[0].n,1);
+ await pool.query('select public.ticket_notifications_tick($1)',['2031-01-07T01:00:00Z']);assert.equal((await pool.query('select count(*)::int n from ticket_private.notifications where recipient_uid=$1 and event_key=$2',[uid,'pending:'+uid+':2031-01-07'])).rows[0].n,0,'Unselected weekdays must not send reminders');
+ await verifiedPhoto(created.body,user);const before=(await pool.query("select count(*)::int n from ticket_private.notifications where recipient_uid=$1 and ticket_id=$2",[uid,created.body.id])).rows[0].n;
  const update={id:created.body.id,operation:'handling',status:'In progress',priority:'High',progress:30,assessment:'Working on it'};assert.equal((await request('updateIssue',update)).status,200);
- const after=(await pool.query("select content from mes_private.notifications where recipient_uid=$1 and ticket_id=$2 order by id desc",[uid,created.body.id])).rows;assert.equal(after.length,before+1);assert.ok(after[0].content.description.includes('30'));
- assert.equal((await request('updateIssue',update)).status,200);assert.equal((await pool.query('select count(*)::int n from mes_private.notifications where recipient_uid=$1 and ticket_id=$2',[uid,created.body.id])).rows[0].n,after.length);
- assert.notEqual((await request('updateIssue',{...update,progress:101})).status,200);assert.equal((await pool.query('select count(*)::int n from mes_private.notifications where recipient_uid=$1 and ticket_id=$2',[uid,created.body.id])).rows[0].n,after.length);
+ const after=(await pool.query("select content from ticket_private.notifications where recipient_uid=$1 and ticket_id=$2 order by id desc",[uid,created.body.id])).rows;assert.equal(after.length,before+1);assert.ok(after[0].content.description.includes('30'));
+ assert.equal((await request('updateIssue',update)).status,200);assert.equal((await pool.query('select count(*)::int n from ticket_private.notifications where recipient_uid=$1 and ticket_id=$2',[uid,created.body.id])).rows[0].n,after.length);
+ assert.notEqual((await request('updateIssue',{...update,progress:101})).status,200);assert.equal((await pool.query('select count(*)::int n from ticket_private.notifications where recipient_uid=$1 and ticket_id=$2',[uid,created.body.id])).rows[0].n,after.length);
  const ticket=(await request('readTicket',{id:created.body.id})).body;
- const edited=await request('saveTicketEdit',{id:ticket.id,baseUpdatedAt:ticket.updatedAt,subject:'Administrator edited the description',process:ticket.process,departmentId:ticket.departmentId,issueTypeId:ticket.issueTypeId||'',reporterUid:uid,status:ticket.status,priority:ticket.priority,progress:ticket.progress,assessment:ticket.assessment||'',richDocument:{version:1,ops:[{insert:'Administrator edited the description with MO details.\n'}]},occurrences:ticket.occurrences,files:ticket.attachments.map((f,index)=>({path:f.path,name:f.name,slotIndex:f.slotIndex??index}))});assert.equal(edited.status,200,JSON.stringify(edited.body));assert.equal((await pool.query('select count(*)::int n from mes_private.notifications where recipient_uid=$1 and ticket_id=$2',[uid,ticket.id])).rows[0].n,after.length+1,'A full ticket edit must emit one notification, not one per internal update');
+ const edited=await request('saveTicketEdit',{id:ticket.id,baseUpdatedAt:ticket.updatedAt,subject:'Administrator edited the description',process:ticket.process,departmentId:ticket.departmentId,issueTypeId:ticket.issueTypeId||'',reporterUid:uid,status:ticket.status,priority:ticket.priority,progress:ticket.progress,assessment:ticket.assessment||'',richDocument:{version:1,ops:[{insert:'Administrator edited the description with MO details.\n'}]},occurrences:ticket.occurrences,files:ticket.attachments.map((f,index)=>({path:f.path,name:f.name,slotIndex:f.slotIndex??index}))});assert.equal(edited.status,200,JSON.stringify(edited.body));assert.equal((await pool.query('select count(*)::int n from ticket_private.notifications where recipient_uid=$1 and ticket_id=$2',[uid,ticket.id])).rows[0].n,after.length+1,'A full ticket edit must emit one notification, not one per internal update');
  const alertConfig=(await request('getNotificationAdmin')).body.rules.priority_alert;assert.equal((await request('saveNotificationRule',{id:'priority_alert',config:{...alertConfig,enabled:true,audience:'admins',priorities:['Critical']}})).status,200);
- assert.equal((await request('updateIssue',{...update,priority:'Critical',progress:40})).status,200);assert.ok((await pool.query("select 1 from mes_private.notifications where recipient_uid='mes-owner' and ticket_id=$1 and event_key like 'alert:%'",[ticket.id])).rowCount>0);assert.equal((await pool.query("select 1 from mes_private.notifications where recipient_uid=$1 and ticket_id=$2 and event_key like 'alert:%'",[uid,ticket.id])).rowCount,0);
+ assert.equal((await request('updateIssue',{...update,priority:'Critical',progress:40})).status,200);assert.ok((await pool.query("select 1 from ticket_private.notifications where recipient_uid='ticket-owner' and ticket_id=$1 and event_key like 'alert:%'",[ticket.id])).rowCount>0);assert.equal((await pool.query("select 1 from ticket_private.notifications where recipient_uid=$1 and ticket_id=$2 and event_key like 'alert:%'",[uid,ticket.id])).rowCount,0);
 
 });
 

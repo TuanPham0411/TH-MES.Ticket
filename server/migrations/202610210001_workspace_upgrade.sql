@@ -1,22 +1,22 @@
 -- Additive upgrade. Existing tickets, accounts, attachments and timeline rows stay intact.
-create table mes_private.access_log (
+create table ticket_private.access_log (
  id bigint generated always as identity primary key,
  created_at timestamptz not null default now(), uid text, username text,
  event text not null, page text, ticket_id text, ip text, agent text, success boolean not null default true
 );
-create index on mes_private.access_log(created_at desc,id desc);
-create table public.mes_translations (
+create index on ticket_private.access_log(created_at desc,id desc);
+create table public.ticket_translations (
  issue_id text not null, source_hash text not null, data jsonb not null, created_at timestamptz not null default now(), primary key(issue_id,source_hash)
 );
-grant select,insert,update,delete on public.mes_translations to th_api;
-alter function public.mes_dispatch(text,jsonb,jsonb) rename to dispatch_before_20261021;
-alter function public.dispatch_before_20261021(text,jsonb,jsonb) set schema mes_private;
-create function public.mes_dispatch(action text,payload jsonb,actor jsonb default '{}'::jsonb)
-returns jsonb language plpgsql security definer set search_path=mes_private,extensions,pg_temp as $$
+grant select,insert,update,delete on public.ticket_translations to th_api;
+alter function public.ticket_dispatch(text,jsonb,jsonb) rename to dispatch_before_20261021;
+alter function public.dispatch_before_20261021(text,jsonb,jsonb) set schema ticket_private;
+create function public.ticket_dispatch(action text,payload jsonb,actor jsonb default '{}'::jsonb)
+returns jsonb language plpgsql security definer set search_path=ticket_private,extensions,pg_temp as $$
 declare current_user_data jsonb; result jsonb; issue jsonb; ident text; text_value text; uid_value text; uname text; event_value text; tick bigint:=(extract(epoch from clock_timestamp())*1000)::bigint;
 begin
  if action in ('addComment','logAccess','getAccessLog','readTicket') then
-  current_user_data:=mes_private.dispatch_before_20261021('getSession','{}',actor);
+  current_user_data:=ticket_private.dispatch_before_20261021('getSession','{}',actor);
   uid_value:=current_user_data->'user'->>'uid';
   uname:=current_user_data->'user'->>'username';
   if action='getAccessLog' then
@@ -48,11 +48,11 @@ begin
   return '{"ok":true}';
  end if;
  if action='logout' then
-  current_user_data:=mes_private.dispatch_before_20261021('getSession','{}',actor);
+  current_user_data:=ticket_private.dispatch_before_20261021('getSession','{}',actor);
  end if;
- result:=mes_private.dispatch_before_20261021(action,payload,actor);
+ result:=ticket_private.dispatch_before_20261021(action,payload,actor);
  if action in ('passwordLogin','activateAccount','logout') then
-  if result ? 'sessionToken' then current_user_data:=mes_private.dispatch_before_20261021('getSession','{}',jsonb_build_object('session',result->>'sessionToken'));end if;
+  if result ? 'sessionToken' then current_user_data:=ticket_private.dispatch_before_20261021('getSession','{}',jsonb_build_object('session',result->>'sessionToken'));end if;
   insert into access_log(uid,username,event,ip,agent,success) values(current_user_data->'user'->>'uid',coalesce(current_user_data->'user'->>'username',left(payload->>'username',64)),action,left(actor->>'ip',80),left(actor->>'agent',240),not (result ? 'errorCode'));
  end if;
  return result;

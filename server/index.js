@@ -11,7 +11,7 @@ import {sameOrigin} from './security.js';
 import {uploadRouter,cleanupUploads} from './uploads.js';
 import {pagesRouter} from './pages.js';
 import {workspaceRouter} from './workspace.js';
-import {mesRouter} from './mes.js';
+import {ticketRouter} from './ticket.js';
 import {portfolioRouter} from './portfolio.js';
 import {driveRouter} from './drive-routes.js';
 import {previewRouter} from './media.js';
@@ -19,27 +19,27 @@ import {adminRouter} from './admin.js';
 import {translationRouter} from './translation.js';
 import {maintenanceGate,backupActive} from './storage.js';
 import {oauthRouter} from './oauth.js';
-export function createApp(pool,filesRoot,{sites=runtimeSites(),mesOnly=process.env.APP_MODE!=='combined',webRoot=process.env.MES_WEB_ROOT}={}) {
- const app=express();app.disable('x-powered-by');app.set('trust proxy',(process.env.TRUST_PROXY||'loopback').split(',').map(v=>v.trim()));app.locals.sites=sites;app.locals.mesOnly=mesOnly;
- app.use((req,res,next)=>{res.set({'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});if(![hostOf(sites.mes),...(!mesOnly?[hostOf(sites.portfolio)]:[]),'127.0.0.1'].includes(req.hostname))return res.sendStatus(400);next();});
+export function createApp(pool,filesRoot,{sites=runtimeSites(),ticketOnly=process.env.APP_MODE!=='combined',webRoot=process.env.TICKET_WEB_ROOT}={}) {
+ const app=express();app.disable('x-powered-by');app.set('trust proxy',(process.env.TRUST_PROXY||'loopback').split(',').map(v=>v.trim()));app.locals.sites=sites;app.locals.ticketOnly=ticketOnly;
+ app.use((req,res,next)=>{res.set({'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});if(![hostOf(sites.ticket),...(!ticketOnly?[hostOf(sites.portfolio)]:[]),'127.0.0.1'].includes(req.hostname))return res.sendStatus(400);next();});
  app.get('/api/health',async(req,res)=>{await pool.query('select 1');res.json({ok:true});});
- app.use('/api',sameOrigin,cookieParser(),rateLimit({windowMs:60000,limit:180,skip:req=>['GET','PATCH'].includes(req.method)&&/^\/api\/mes\/(media|uploads)\/[a-f0-9-]{36}(?:\?|$)/.test(req.originalUrl),standardHeaders:'draft-7',legacyHeaders:false}));
+ app.use('/api',sameOrigin,cookieParser(),rateLimit({windowMs:60000,limit:180,skip:req=>['GET','PATCH'].includes(req.method)&&/^\/api\/ticket\/(media|uploads)\/[a-f0-9-]{36}(?:\?|$)/.test(req.originalUrl),standardHeaders:'draft-7',legacyHeaders:false}));
  const authLimit=rateLimit({windowMs:900000,limit:30,standardHeaders:'draft-7',legacyHeaders:false});
  app.use('/api/oauth',authLimit,oauthRouter(pool));
  app.use(express.json({limit:'1mb'}));
  const gate=maintenanceGate();app.locals.maintenance=gate;app.use(gate.middleware);
- app.use('/api/mes/uploads',rateLimit({windowMs:60000,limit:600,standardHeaders:'draft-7',legacyHeaders:false}));
- app.use('/api/mes/media',rateLimit({windowMs:60000,limit:600,standardHeaders:'draft-7',legacyHeaders:false}));
- app.use('/api/portfolio',(req,res,next)=>!mesOnly&&req.hostname===hostOf(sites.portfolio)?next():res.sendStatus(404));
- app.use('/api/mes',(req,res,next)=>req.hostname===hostOf(sites.mes)?next():res.sendStatus(404));
+ app.use('/api/ticket/uploads',rateLimit({windowMs:60000,limit:600,standardHeaders:'draft-7',legacyHeaders:false}));
+ app.use('/api/ticket/media',rateLimit({windowMs:60000,limit:600,standardHeaders:'draft-7',legacyHeaders:false}));
+ app.use('/api/portfolio',(req,res,next)=>!ticketOnly&&req.hostname===hostOf(sites.portfolio)?next():res.sendStatus(404));
+ app.use('/api/ticket',(req,res,next)=>req.hostname===hostOf(sites.ticket)?next():res.sendStatus(404));
  app.use((req,res,next)=>['login','register','reset','consumeToken'].includes(req.body?.action)||['passwordLogin','activateAccount'].includes(req.body?.name)?authLimit(req,res,next):next());
- app.use('/api/mes',driveRouter(pool));app.use('/api/mes',pagesRouter(pool));
- app.use('/api/mes',previewRouter(pool,filesRoot));
- app.use('/api/mes/wifi',wifiRouter(pool));
- app.use('/api/mes/admin',adminRouter(pool,filesRoot,gate));app.use('/api/mes',translationRouter(pool));
- if(!mesOnly)app.use('/api/portfolio',portfolioRouter(pool,filesRoot));app.use('/api/mes/uploads',uploadRouter(pool,filesRoot,gate));app.use('/api/mes',workspaceRouter(pool,filesRoot));app.use('/api/mes',mesRouter(pool,filesRoot));
- if(!mesOnly&&process.env.PORTFOLIO_WEB_ROOT){const portfolioWeb=resolve(process.env.PORTFOLIO_WEB_ROOT),mesWeb=resolve(process.env.MES_WEB_ROOT||'mes/dist');app.use((req,res,next)=>express.static(req.hostname===hostOf(sites.portfolio)?portfolioWeb:mesWeb)(req,res,next));app.get(['/', '/ticket/:reference','/page/:id'],(req,res)=>res.sendFile(resolve(req.hostname===hostOf(sites.portfolio)?portfolioWeb:mesWeb,'index.html')));}
- if(mesOnly&&webRoot){app.use(express.static(resolve(webRoot)));app.get(['/','/ticket/:reference','/page/:id'],(req,res)=>res.sendFile(resolve(webRoot,'index.html')));}
+ app.use('/api/ticket',driveRouter(pool));app.use('/api/ticket',pagesRouter(pool));
+ app.use('/api/ticket',previewRouter(pool,filesRoot));
+ app.use('/api/ticket/wifi',wifiRouter(pool));
+ app.use('/api/ticket/admin',adminRouter(pool,filesRoot,gate));app.use('/api/ticket',translationRouter(pool));
+ if(!ticketOnly)app.use('/api/portfolio',portfolioRouter(pool,filesRoot));app.use('/api/ticket/uploads',uploadRouter(pool,filesRoot,gate));app.use('/api/ticket',workspaceRouter(pool,filesRoot));app.use('/api/ticket',ticketRouter(pool,filesRoot));
+ if(!ticketOnly&&process.env.PORTFOLIO_WEB_ROOT){const portfolioWeb=resolve(process.env.PORTFOLIO_WEB_ROOT),ticketWeb=resolve(process.env.TICKET_WEB_ROOT||'ticket/dist');app.use((req,res,next)=>express.static(req.hostname===hostOf(sites.portfolio)?portfolioWeb:ticketWeb)(req,res,next));app.get(['/', '/ticket/:reference','/page/:id'],(req,res)=>res.sendFile(resolve(req.hostname===hostOf(sites.portfolio)?portfolioWeb:ticketWeb,'index.html')));}
+ if(ticketOnly&&webRoot){app.use(express.static(resolve(webRoot)));app.get(['/','/ticket/:reference','/page/:id'],(req,res)=>res.sendFile(resolve(webRoot,'index.html')));}
  app.use((err,req,res,next)=>{
   const code=err.code;
   if(['P0099','P0409'].includes(code)){err.status=409;err.expose=true;}
@@ -51,7 +51,7 @@ export function createApp(pool,filesRoot,{sites=runtimeSites(),mesOnly=process.e
  return app;
 }
 if(process.env.NODE_ENV!=='test') {
- const pool=managedPool(new pg.Pool({connectionString:process.env.DATABASE_URL,max:4,idleTimeoutMillis:30000,connectionTimeoutMillis:5000,options:'-c statement_timeout=15000'}),'mes-ticket');
+ const pool=managedPool(new pg.Pool({connectionString:process.env.DATABASE_URL,max:4,idleTimeoutMillis:30000,connectionTimeoutMillis:5000,options:'-c statement_timeout=15000'}),'ticket');
  pool.on('error',error=>console.error('Database connection interrupted',{code:error.code||'connection-error'}));
  const filesRoot=process.env.FILES_ROOT||'/var/lib/th-app/files';
  const app=createApp(pool,process.env.FILES_ROOT||'/var/lib/th-app/files');

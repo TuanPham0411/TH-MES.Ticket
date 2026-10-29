@@ -30,11 +30,11 @@ const fail = (status, message) =>
 export function uploadRouter(pool, root, gate) {
   const router = Router();
   const actor = (req) =>
-    actorFor(req.cookies.th_mes, req.headers["x-mes-tester"]);
+    actorFor(req.cookies.th_ticket, req.headers["x-ticket-tester"]);
   async function dispatch(db, name, data, identity) {
     const {
       rows: [r],
-    } = await db.query("select public.mes_dispatch($1,$2,$3) result", [
+    } = await db.query("select public.ticket_dispatch($1,$2,$3) result", [
       name,
       data,
       identity,
@@ -50,11 +50,11 @@ export function uploadRouter(pool, root, gate) {
     if (record?.kind === "ticket")
       await dispatch(db, "uploadUrl", { path: record.path }, identity);
     if (record?.kind === "media") {
-      const media=(await db.query('select purpose from public.mes_media where id=$1',[record.path])).rows[0];
+      const media=(await db.query('select purpose from public.ticket_media where id=$1',[record.path])).rows[0];
       if(media?.purpose==='notification')await dispatch(db,'authorizeNotificationMedia',{id:record.path},identity);
       else if (!session.isOwner) throw fail(403, "Administrator required");
       const { rowCount } = await db.query(
-        "select 1 from public.mes_media where id=$1",
+        "select 1 from public.ticket_media where id=$1",
         [record.path],
       );
       if (!rowCount) throw fail(404, "Media unavailable");
@@ -86,7 +86,7 @@ export function uploadRouter(pool, root, gate) {
       const {
         rows: [previous],
       } = await db.query(
-        "select * from public.mes_uploads where kind=$1 and path=$2 for update",
+        "select * from public.ticket_uploads where kind=$1 and path=$2 for update",
         [kind, path],
       );
       if (previous) {
@@ -109,7 +109,7 @@ export function uploadRouter(pool, root, gate) {
         const {
           rows: [media],
         } = await db.query(
-          "select * from public.mes_media where id=$1 and not ready for update",
+          "select * from public.ticket_media where id=$1 and not ready for update",
           [path],
         );
         if (!media || Number(media.size) !== size || media.type !== type)
@@ -118,14 +118,14 @@ export function uploadRouter(pool, root, gate) {
         const {
           rows: [quota],
         } = await db.query(
-          "select (select coalesce(sum(size),0) from public.files)+(select coalesce(sum(size),0) from public.mes_media)+(select coalesce(sum(size),0) from public.mes_uploads where kind='ticket' and not complete and expires>now()) used",
+          "select (select coalesce(sum(size),0) from public.files)+(select coalesce(sum(size),0) from public.ticket_media)+(select coalesce(sum(size),0) from public.ticket_uploads where kind='ticket' and not complete and expires>now()) used",
         );
         if (Number(quota.used) + size > storageQuota())
           throw fail(507, "Storage quota reached");
       }
       const id = randomUUID();
       await db.query(
-        "insert into public.mes_uploads(id,kind,path,owner_uid,type,size) values($1,$2,$3,$4,$5,$6)",
+        "insert into public.ticket_uploads(id,kind,path,owner_uid,type,size) values($1,$2,$3,$4,$5,$6)",
         [id, kind, path, record.owner_uid, type, size],
       );
       await db.query("commit");
@@ -148,12 +148,12 @@ export function uploadRouter(pool, root, gate) {
       cloud=await prepareCloudOriginal(pool,temporary,record.kind==='ticket'?record.path:'media/'+record.path,record.type,record.size);
       if(!cloud)throw fail(409,'Storage changed. Retry the upload after selecting Drive.');
       db=await pool.connect(); await db.query('begin');
-      const locked=(await db.query('select * from public.mes_uploads where id=$1 for update',[record.id])).rows[0];
+      const locked=(await db.query('select * from public.ticket_uploads where id=$1 for update',[record.id])).rows[0];
       if(!locked||locked.complete||Number(locked.offset_bytes)!==Number(record.size))throw fail(409,'Upload state changed');
       await authorize(db,req,record); await commitCloudRecord(db,cloud);
       if(record.kind==='ticket')await db.query('insert into public.files(path,type,size) values($1,$2,$3)',[record.path,record.type,record.size]);
-      else await db.query('update public.mes_media set ready=true where id=$1',[record.path]);
-      await db.query('update public.mes_uploads set complete=true where id=$1',[record.id]);
+      else await db.query('update public.ticket_media set ready=true where id=$1',[record.path]);
+      await db.query('update public.ticket_uploads set complete=true where id=$1',[record.id]);
       await db.query('commit'); cloud=null;
       await rm(temporary,{force:true}).catch(()=>{});
     }catch(error){
@@ -169,7 +169,7 @@ export function uploadRouter(pool, root, gate) {
     const {
       rows: [initial],
     } = await pool.query(
-      "select * from public.mes_uploads where id=$1 and expires>now()",
+      "select * from public.ticket_uploads where id=$1 and expires>now()",
       [req.params.id],
     );
     if (!initial) throw fail(410, "Upload expired or unavailable");
@@ -200,7 +200,7 @@ export function uploadRouter(pool, root, gate) {
     try {
       const {
         rows: [record],
-      } = await pool.query("select * from public.mes_uploads where id=$1", [
+      } = await pool.query("select * from public.ticket_uploads where id=$1", [
         initial.id,
       ]);
       const current = Number(record.offset_bytes);
@@ -243,7 +243,7 @@ export function uploadRouter(pool, root, gate) {
       const next = current + received,
         complete = next === Number(record.size);
       if(complete&&await mediaProvider(pool)==='drive'){
-        await pool.query("update public.mes_uploads set offset_bytes=$2,expires=now()+interval '2 hours' where id=$1",[record.id,next]);
+        await pool.query("update public.ticket_uploads set offset_bytes=$2,expires=now()+interval '2 hours' where id=$1",[record.id,next]);
         wrote=false; active.delete(record.id);
         void gate.background(()=>finalizeCloud({...record,offset_bytes:next},req));
         return res.status(202).json({offset:next,complete:false,processing:true});
@@ -254,7 +254,7 @@ export function uploadRouter(pool, root, gate) {
       const {
         rows: [locked],
       } = await db.query(
-        "select * from public.mes_uploads where id=$1 for update",
+        "select * from public.ticket_uploads where id=$1 for update",
         [record.id],
       );
       if (!locked || Number(locked.offset_bytes) !== current)
@@ -273,12 +273,12 @@ export function uploadRouter(pool, root, gate) {
             [record.path, record.type, record.size],
           );
         else
-          await db.query("update public.mes_media set ready=true where id=$1", [
+          await db.query("update public.ticket_media set ready=true where id=$1", [
             record.path,
           ]);
       }
       await db.query(
-        "update public.mes_uploads set offset_bytes=$2,complete=$3,expires=now()+interval '2 hours' where id=$1",
+        "update public.ticket_uploads set offset_bytes=$2,complete=$3,expires=now()+interval '2 hours' where id=$1",
         [record.id, next, complete],
       );
       await db.query("commit");
@@ -302,13 +302,13 @@ export function uploadRouter(pool, root, gate) {
 }
 export async function cleanupUploads(pool, root) {
   const { rows } = await pool.query(
-    "select id from public.mes_uploads where expires<now() limit 100",
+    "select id from public.ticket_uploads where expires<now() limit 100",
   );
   for (const row of rows) {
     await deleteEverywhere(root, `.uploads/${row.id}.part`);
-    await pool.query("delete from public.mes_uploads where id=$1 and expires<now()",[row.id]);
+    await pool.query("delete from public.ticket_uploads where id=$1 and expires<now()",[row.id]);
   }
   await pool.query(
-    "delete from public.mes_media where not ready and created_at<now()-interval '1 day' and not exists(select 1 from public.mes_uploads u where u.kind='media' and u.path=mes_media.id)",
+    "delete from public.ticket_media where not ready and created_at<now()-interval '1 day' and not exists(select 1 from public.ticket_uploads u where u.kind='media' and u.path=ticket_media.id)",
   );
 }

@@ -20,10 +20,10 @@ export function oauthRouter(pool) {
   const credentials=await response.json();if(!response.ok||!credentials.access_token)return res.status(401).send('Google login failed.');
   const identity=await fetch('https://openidconnect.googleapis.com/v1/userinfo',{headers:{Authorization:`Bearer ${credentials.access_token}`},signal:AbortSignal.timeout(15000)});
   const user=await identity.json();if(!identity.ok||user.email_verified!==true||typeof user.email!=='string')return res.status(401).send('Verified email required.');
-  if(req.hostname===hostOf(req.app.locals.sites.mes)) {
+  if(req.hostname===hostOf(req.app.locals.sites.ticket)) {
    if(user.email.toLowerCase()!==(process.env.OWNER_EMAIL||'eric.scorp93@gmail.com').toLowerCase())return res.status(403).send('Owner account required.');
-   const {rows:[row]}=await pool.query('select public.mes_google_owner_session() as result');
-   res.cookie('th_mes',row.result.sessionToken,{httpOnly:true,secure:true,sameSite:'lax',path:'/',maxAge:12*3600*1000});
+   const {rows:[row]}=await pool.query('select public.ticket_google_owner_session() as result');
+   res.cookie('th_ticket',row.result.sessionToken,{httpOnly:true,secure:true,sameSite:'lax',path:'/',maxAge:12*3600*1000});
   } else {
    const {rows:[u]}=await pool.query("insert into portfolio.users(email,password,name,verified,admin) values($1,extensions.crypt($2,extensions.gen_salt('bf',10)),$3,true,$4) on conflict(email) do update set password=case when portfolio.users.verified then portfolio.users.password else excluded.password end,verified=true,admin=excluded.admin returning *",[user.email.toLowerCase(),token(),String(user.name||'').slice(0,80),user.email.toLowerCase()===(process.env.OWNER_EMAIL||'eric.scorp93@gmail.com').toLowerCase()]);
    await pool.query('delete from portfolio.sessions where uid=$1',[u.id]);

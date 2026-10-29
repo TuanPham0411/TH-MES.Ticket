@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {incidentLoad,priorityAt,priorityHeight,departmentColor} from '../mes/site/incident-load.js';
+import {incidentLoad,priorityAt,priorityHeight,departmentColor} from '../ticket/site/incident-load.js';
 const start=Date.parse('2026-10-20T17:00:00Z'),hour=3600000,end=start+4*hour;
 const iso=n=>new Date(start+n*hour).toISOString();
 const issue=(id,priority,occurrences,extra={})=>({id,priority,occurrences,...extra});

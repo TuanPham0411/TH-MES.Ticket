@@ -1,12 +1,12 @@
 -- Admin edit drafts use fresh immutable file paths; old originals/history stay intact.
-create table mes_private.attachment_drafts(path text primary key,issue_id text not null,owner_uid text not null,slot_index integer not null check(slot_index between 0 and 4),expires timestamptz not null default now()+interval '2 hours');
-alter function public.mes_dispatch(text,jsonb,jsonb) rename to dispatch_before_full_edit;
-alter function public.dispatch_before_full_edit(text,jsonb,jsonb) set schema mes_private;
-create function public.mes_dispatch(action text,payload jsonb,actor jsonb default '{}'::jsonb) returns jsonb language plpgsql security definer set search_path=mes_private,extensions,pg_temp as $$
+create table ticket_private.attachment_drafts(path text primary key,issue_id text not null,owner_uid text not null,slot_index integer not null check(slot_index between 0 and 4),expires timestamptz not null default now()+interval '2 hours');
+alter function public.ticket_dispatch(text,jsonb,jsonb) rename to dispatch_before_full_edit;
+alter function public.dispatch_before_full_edit(text,jsonb,jsonb) set schema ticket_private;
+create function public.ticket_dispatch(action text,payload jsonb,actor jsonb default '{}'::jsonb) returns jsonb language plpgsql security definer set search_path=ticket_private,extensions,pg_temp as $$
 declare s jsonb;old jsonb;updated jsonb;changes jsonb;d jsonb;f jsonb;rows jsonb:='[]';item jsonb;ident text;uid text;idx integer;reserved text;seen integer[]:='{}';slots jsonb:='[]';tick bigint:=(extract(epoch from clock_timestamp())*1000)::bigint;
 begin
  if action in ('reserveTicketFiles','saveTicketEdit') or (action='uploadUrl' and exists(select 1 from attachment_drafts where path=payload->>'path' and expires>now())) then
-  s:=mes_private.dispatch_before_full_edit('getSession','{}',actor);
+  s:=ticket_private.dispatch_before_full_edit('getSession','{}',actor);
   if not coalesce((s->>'isOwner')::boolean,false) then raise exception 'Administrator required';end if;
   uid:=s->'user'->>'uid';ident:=coalesce(payload->>'id',split_part(payload->>'path','/',2));
   select data into old from records where collection='issues' and id=ident for update;
@@ -43,15 +43,15 @@ begin
   changes:='{}';
   for ident in select unnest(array['departmentId','issueTypeId','reporterUid']) loop
    select data into d from records where collection=case ident when 'departmentId' then 'departments' else 'users' end and id=payload->>ident;
-   if ident='issueTypeId' then select data into d from public.mes_workspace where kind='issueTypes' and id=payload->>ident;end if;
+   if ident='issueTypeId' then select data into d from public.ticket_workspace where kind='issueTypes' and id=payload->>ident;end if;
    if d is null and nullif(payload->>ident,'') is not distinct from old->>ident then continue;end if;
    if d is null or (payload->>ident is distinct from old->>ident and not coalesce((d->>'active')::boolean,true)) then raise exception 'Choose an existing active directory entry';end if;
    changes:=changes||case ident when 'departmentId' then jsonb_build_object('departmentId',payload->>ident,'departmentName',d->>'name') when 'issueTypeId' then jsonb_build_object('issueTypeId',payload->>ident,'issueTypeName',d->>'name') else jsonb_build_object('reporterUid',payload->>ident,'reporterName',d->>'displayName','reporterUsername',d->>'username') end;
   end loop;
   ident:=payload->>'id';
   -- Existing validation and timeline recording remain the authority for text/handling.
-  perform mes_private.dispatch_before_full_edit('updateIssue',payload||'{"operation":"edit"}',actor);
-  perform mes_private.dispatch_before_full_edit('updateIssue',payload||'{"operation":"handling"}',actor);
+  perform ticket_private.dispatch_before_full_edit('updateIssue',payload||'{"operation":"edit"}',actor);
+  perform ticket_private.dispatch_before_full_edit('updateIssue',payload||'{"operation":"handling"}',actor);
   for idx in 0..4 loop select split_part(a->>'path','/',3) into reserved from jsonb_array_elements(rows) a where (a->>'slotIndex')::integer=idx;slots:=slots||jsonb_build_array(coalesce(reserved,gen_random_uuid()::text));end loop;
   update records set data=data||changes||jsonb_build_object('attachments',rows,'uploadSlots',slots,'updatedAt',tick) where collection='issues' and id=ident returning data into updated;
   for f in select value from jsonb_array_elements(rows) loop update public.files set name=f->>'name' where path=f->>'path';end loop;
@@ -59,5 +59,5 @@ begin
   delete from attachment_drafts where issue_id=ident and owner_uid=uid;
   return jsonb_build_object('ok',true,'id',ident);
  end if;
- return mes_private.dispatch_before_full_edit(action,payload,actor);
+ return ticket_private.dispatch_before_full_edit(action,payload,actor);
 end $$;

@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {incidentSeries,vietnamInput,vietnamTime} from '../mes/site/incident-analytics.js';
+import {incidentSeries,vietnamInput,vietnamTime} from '../ticket/site/incident-analytics.js';
 const start=Date.parse('2026-10-20T17:00:00Z'),end=start+86400000;
 test('incident timeline uses reported times, counts closed records once per bucket and keeps missing times separate',()=>{
  const issues=[{id:'a',status:'Closed',createdAt:end+1000,occurrences:[{kind:'point',start:new Date(start).toISOString()},{kind:'range',start:new Date(start).toISOString(),end:new Date(start+3600000).toISOString()}]},{id:'b',createdAt:start},{id:'bad',occurrences:[{kind:'range',start:'bad',end:'bad'}]}];

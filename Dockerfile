@@ -8,10 +8,10 @@ COPY . .
 RUN npm run build
 
 FROM node:22-bookworm-slim
-ENV NODE_ENV=production APP_MODE=mes HOST=0.0.0.0 PORT=3000 FILES_ROOT=/data/files DRIVE_TOKEN_FILE=/data/drive-credentials.json
+ENV NODE_ENV=production APP_MODE=ticket HOST=0.0.0.0 PORT=3000 FILES_ROOT=/data/files DRIVE_TOKEN_FILE=/data/drive-credentials.json
 WORKDIR /app
 COPY --from=build --chown=node:node /app/dist/server ./dist/server
-COPY --from=build --chown=node:node /app/mes/dist ./mes/dist
+COPY --from=build --chown=node:node /app/ticket/dist ./ticket/dist
 COPY --from=build --chown=node:node /app/start.mjs ./start.mjs
 RUN mkdir -p /data/files && chown -R node:node /data
 USER node

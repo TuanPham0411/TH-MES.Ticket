@@ -1,6 +1,6 @@
 node_modules/
 dist/
-mes/dist/
+ticket/dist/
 work/
 .env
 .env.*

@@ -15,11 +15,11 @@ try {
   try{await client.query(await readFile(join(migrationRoot,name),'utf8'));await client.query('insert into public.schema_migrations values($1)',[name]);await client.query('commit');}
   catch(e){await client.query('rollback');throw e;}
  }
- await client.query(`revoke all on schema mes_private from public;
- revoke all on all tables in schema mes_private from public,th_api;
- revoke execute on all functions in schema mes_private from public,th_api;
+ await client.query(`revoke all on schema ticket_private from public;
+ revoke all on all tables in schema ticket_private from public,th_api;
+ revoke execute on all functions in schema ticket_private from public,th_api;
  revoke execute on all functions in schema public from public,th_api;
- grant execute on function public.mes_dispatch(text,jsonb,jsonb),public.mes_google_owner_session(),public.mes_view(text,jsonb),public.mes_notifications_tick(timestamptz) to th_api;
+ grant execute on function public.ticket_dispatch(text,jsonb,jsonb),public.ticket_google_owner_session(),public.ticket_view(text,jsonb),public.ticket_notifications_tick(timestamptz) to th_api;
  grant usage on schema public,portfolio,extensions to th_api;
  grant select,insert,update,delete on all tables in schema portfolio to th_api;
  grant select,insert,update,delete on public.files,public.file_grants to th_api;`);

@@ -1,12 +1,12 @@
 -- Project only the state transitions needed by analytics; comments, assessment,
 -- authors and private account fields never enter the dashboard history.
-create function mes_private.incident_history_result(action text,payload jsonb,result jsonb) returns jsonb language plpgsql security definer set search_path=mes_private,pg_temp as $$
+create function ticket_private.incident_history_result(action text,payload jsonb,result jsonb) returns jsonb language plpgsql security definer set search_path=ticket_private,pg_temp as $$
 declare output jsonb; histories jsonb; k text; item jsonb;
 begin
  if action='readBundle' then
   output:='{}';
   for k,item in select * from jsonb_each(result->'snapshots') loop
-   output:=output||jsonb_build_object(k,mes_private.incident_history_result('read',jsonb_build_object('path',k),item));
+   output:=output||jsonb_build_object(k,ticket_private.incident_history_result('read',jsonb_build_object('path',k),item));
   end loop;
   return result||jsonb_build_object('snapshots',output);
  end if;
@@ -26,14 +26,14 @@ begin
  select coalesce(jsonb_agg(i||jsonb_build_object('analysisHistory',coalesce(histories->(i->>'id'),'[]')) order by ord),'[]') into output from jsonb_array_elements(result->'rows') with ordinality a(i,ord);
  return result||jsonb_build_object('rows',output);
 end $$;
-alter function public.mes_dispatch(text,jsonb,jsonb) rename to dispatch_before_incident_history;
-alter function public.dispatch_before_incident_history(text,jsonb,jsonb) set schema mes_private;
-create function public.mes_dispatch(action text,payload jsonb,actor jsonb default '{}'::jsonb) returns jsonb language sql security definer set search_path=mes_private,pg_temp as $$
- select mes_private.incident_history_result(action,payload,mes_private.dispatch_before_incident_history(action,payload,actor));
+alter function public.ticket_dispatch(text,jsonb,jsonb) rename to dispatch_before_incident_history;
+alter function public.dispatch_before_incident_history(text,jsonb,jsonb) set schema ticket_private;
+create function public.ticket_dispatch(action text,payload jsonb,actor jsonb default '{}'::jsonb) returns jsonb language sql security definer set search_path=ticket_private,pg_temp as $$
+ select ticket_private.incident_history_result(action,payload,ticket_private.dispatch_before_incident_history(action,payload,actor));
 $$;
-alter function public.mes_view(text,jsonb) rename to view_before_incident_history;
-alter function public.view_before_incident_history(text,jsonb) set schema mes_private;
-create function public.mes_view(action text,payload jsonb default '{}'::jsonb) returns jsonb language sql security definer set search_path=mes_private,pg_temp as $$
- select mes_private.incident_history_result(action,payload,mes_private.view_before_incident_history(action,payload));
+alter function public.ticket_view(text,jsonb) rename to view_before_incident_history;
+alter function public.view_before_incident_history(text,jsonb) set schema ticket_private;
+create function public.ticket_view(action text,payload jsonb default '{}'::jsonb) returns jsonb language sql security definer set search_path=ticket_private,pg_temp as $$
+ select ticket_private.incident_history_result(action,payload,ticket_private.view_before_incident_history(action,payload));
 $$;
-revoke all on function mes_private.incident_history_result(text,jsonb,jsonb) from public;
+revoke all on function ticket_private.incident_history_result(text,jsonb,jsonb) from public;
