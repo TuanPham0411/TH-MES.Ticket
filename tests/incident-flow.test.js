@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {incidentLoad} from '../mes/site/incident-load.js';
-import {incidentFlow} from '../mes/site/incident-flow.js';
+import {incidentLoad} from '../ticket/site/incident-load.js';
+import {incidentFlow} from '../ticket/site/incident-flow.js';
 const start=Date.parse('2026-10-20T17:00:00Z'),hour=3600000,at=h=>start+h*hour,end=at(24),point=h=>({kind:'point',start:new Date(at(h)).toISOString()});
 const run=(issues,extra={})=>incidentFlow(incidentLoad(issues,{start,end,now:end,unit:'hour',...extra}),{start,end,now:end});
 const ticket=(id,created,extra={})=>({id,priority:'Medium',status:'New',departmentId:id,createdAt:at(created),occurrences:[point(created-2)],...extra});

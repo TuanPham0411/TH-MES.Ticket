@@ -1,17 +1,17 @@
 -- Bounded workspace publishing and network telemetry. Runtime access stays server-only.
-create table public.mes_workspace(kind text not null,id text not null,data jsonb not null,primary key(kind,id));
-create table public.mes_media(id text primary key,title text not null,type text not null,size bigint not null default 0,ready boolean not null default false,created_at timestamptz not null default now());
-create table public.mes_probes(id bigint generated always as identity primary key,target_id text not null,checked_at timestamptz not null default now(),ok boolean not null,latency_ms double precision,mbps double precision,bytes int not null default 0,status int,error text);
-create index on public.mes_probes(target_id,checked_at desc);
-insert into public.mes_workspace values('issueTypes','general','{"name":"General","active":true}');
-grant select,insert,update,delete on public.mes_workspace,public.mes_media,public.mes_probes to th_api;
-grant usage,select on sequence public.mes_probes_id_seq to th_api;
+create table public.ticket_workspace(kind text not null,id text not null,data jsonb not null,primary key(kind,id));
+create table public.ticket_media(id text primary key,title text not null,type text not null,size bigint not null default 0,ready boolean not null default false,created_at timestamptz not null default now());
+create table public.ticket_probes(id bigint generated always as identity primary key,target_id text not null,checked_at timestamptz not null default now(),ok boolean not null,latency_ms double precision,mbps double precision,bytes int not null default 0,status int,error text);
+create index on public.ticket_probes(target_id,checked_at desc);
+insert into public.ticket_workspace values('issueTypes','general','{"name":"General","active":true}');
+grant select,insert,update,delete on public.ticket_workspace,public.ticket_media,public.ticket_probes to th_api;
+grant usage,select on sequence public.ticket_probes_id_seq to th_api;
 DO $upgrade$
 DECLARE definition text;
 BEGIN
- definition:=pg_get_functiondef('public.mes_dispatch(text,jsonb,jsonb)'::regprocedure);
+ definition:=pg_get_functiondef('public.ticket_dispatch(text,jsonb,jsonb)'::regprocedure);
  definition:=replace(definition,$old$  elsif action='createIssue' then$old$,$new$  elsif action='createIssue' then
-    select w.data into d from public.mes_workspace w where w.kind='issueTypes' and w.id=coalesce(payload->>'issueTypeId','general') and w.data->>'active'='true';
+    select w.data into d from public.ticket_workspace w where w.kind='issueTypes' and w.id=coalesce(payload->>'issueTypeId','general') and w.data->>'active'='true';
     if d is null then raise exception 'Select an active issue type'; end if;
     payload:=payload||jsonb_build_object('issueTypeId',coalesce(payload->>'issueTypeId','general'),'issueTypeName',d->>'name');
 $new$);

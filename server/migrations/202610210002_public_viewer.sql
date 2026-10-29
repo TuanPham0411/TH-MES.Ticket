@@ -1,6 +1,6 @@
 -- Explicit read-only facade. No account/session or private-directory access.
-create function public.mes_view(action text,payload jsonb default '{}'::jsonb)
-returns jsonb language plpgsql security definer set search_path=mes_private,extensions,pg_temp as $$
+create function public.ticket_view(action text,payload jsonb default '{}'::jsonb)
+returns jsonb language plpgsql security definer set search_path=ticket_private,extensions,pg_temp as $$
 declare path text; item jsonb; result jsonb; ticket jsonb; ident text;
 begin
  if jsonb_typeof(payload) is distinct from 'object' then raise exception 'Invalid viewer request';end if;
@@ -8,7 +8,7 @@ begin
   if jsonb_typeof(payload->'paths') is distinct from 'array' or jsonb_array_length(payload->'paths')>8 then raise exception 'Invalid read bundle';end if;
   result:='{}';
   for item in select value from jsonb_array_elements(payload->'paths') loop
-   result:=result||jsonb_build_object(item->>'path',public.mes_view('read',item));
+   result:=result||jsonb_build_object(item->>'path',public.ticket_view('read',item));
   end loop;
   return jsonb_build_object('snapshots',result);
  end if;

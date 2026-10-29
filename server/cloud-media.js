@@ -3,11 +3,11 @@ import {Readable} from 'node:stream';
 import {pipeline} from 'node:stream/promises';
 import {filePath} from './storage.js';
 import {driveApi,uploadDriveFile} from './drive-client.js';
-export async function mediaProvider(pool){return (await pool.query("select provider from public.mes_storage_settings where id='main'")).rows[0]?.provider||'local';}
-export async function cloudRecord(pool,path){return (await pool.query('select * from public.mes_cloud_files where path=$1',[path])).rows[0];}
+export async function mediaProvider(pool){return (await pool.query("select provider from public.ticket_storage_settings where id='main'")).rows[0]?.provider||'local';}
+export async function cloudRecord(pool,path){return (await pool.query('select * from public.ticket_cloud_files where path=$1',[path])).rows[0];}
 export async function prepareCloudOriginal(pool,path,relative,type,size){if(await mediaProvider(pool)!=='drive')return null;const uploaded=await uploadDriveFile(path,relative,type,size);return {path:relative,drive_id:uploaded.id,type,size,checksum:uploaded.checksum};}
-export async function commitCloudRecord(db,record){await db.query('insert into public.mes_cloud_files(path,drive_id,type,size,checksum) values($1,$2,$3,$4,$5)',[record.path,record.drive_id,record.type,record.size,record.checksum]);}
-export async function removeCloudFile(pool,path){if(!path.endsWith('.preview.jpg'))await removeCloudFile(pool,path+'.preview.jpg');const row=await cloudRecord(pool,path);if(!row)return;const response=await driveApi(`files/${encodeURIComponent(row.drive_id)}`,{method:'DELETE'});if(!response.ok&&response.status!==404)throw new Error('Cloud file could not be removed');await pool.query('delete from public.mes_cloud_files where path=$1',[path]);}
+export async function commitCloudRecord(db,record){await db.query('insert into public.ticket_cloud_files(path,drive_id,type,size,checksum) values($1,$2,$3,$4,$5)',[record.path,record.drive_id,record.type,record.size,record.checksum]);}
+export async function removeCloudFile(pool,path){if(!path.endsWith('.preview.jpg'))await removeCloudFile(pool,path+'.preview.jpg');const row=await cloudRecord(pool,path);if(!row)return;const response=await driveApi(`files/${encodeURIComponent(row.drive_id)}`,{method:'DELETE'});if(!response.ok&&response.status!==404)throw new Error('Cloud file could not be removed');await pool.query('delete from public.ticket_cloud_files where path=$1',[path]);}
 export async function serveCloudMedia(pool,root,path,req,res,type){
  const original=await cloudRecord(pool,path);if(!original)return false;
  const record=req.query.preview==='1'&&type.startsWith('image/')?(await cloudRecord(pool,path+'.preview.jpg')||original):original;

@@ -27,7 +27,7 @@ jobs:
           SELECTED_RUNNER: '${{ runner.name }}'
           REGISTRY_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
           REGISTRY_USER: '${{ github.actor }}'
-          TH_APPLICATION: mes-ticket
+          TH_APPLICATION: ticket
           TH_REPOSITORY: '${{ github.event.repository.name }}'
         run: |
           set -euo pipefail

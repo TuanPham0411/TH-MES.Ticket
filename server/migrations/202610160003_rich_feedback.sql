@@ -2,9 +2,9 @@
 DO $rich_upgrade$
 DECLARE definition text;
 BEGIN
-  definition:=pg_get_functiondef('public.mes_dispatch(text,jsonb,jsonb)'::regprocedure);
+  definition:=pg_get_functiondef('public.ticket_dispatch(text,jsonb,jsonb)'::regprocedure);
   IF position('Rich feedback v1' in definition)=0 THEN
-    IF position($before$  if jsonb_typeof(payload)<>'object' then raise exception 'Invalid payload'; end if;$before$ in definition)=0 THEN RAISE EXCEPTION 'MES dispatcher differs; review rich-text upgrade'; END IF;
+    IF position($before$  if jsonb_typeof(payload)<>'object' then raise exception 'Invalid payload'; end if;$before$ in definition)=0 THEN RAISE EXCEPTION 'TICKET dispatcher differs; review rich-text upgrade'; END IF;
     definition:=replace(definition,$before$  if jsonb_typeof(payload)<>'object' then raise exception 'Invalid payload'; end if;$before$,$after$  if jsonb_typeof(payload)<>'object' then raise exception 'Invalid payload'; end if;
   -- Rich feedback v1: images reference reserved slots, never remote URLs or HTML.
   if (action='createIssue' or (action='updateIssue' and op='edit')) and payload ? 'richDocument' then
@@ -17,14 +17,14 @@ BEGIN
       if r ? 'attributes' and jsonb_typeof(r->'attributes') is distinct from 'object' then raise exception 'Invalid text attributes'; end if;
     end loop;
   end if;$after$);
-    IF position($before$'description',trim(payload->>'description'),'reporterUid'$before$ in definition)=0 THEN RAISE EXCEPTION 'MES dispatcher differs; review rich-text upgrade'; END IF;
+    IF position($before$'description',trim(payload->>'description'),'reporterUid'$before$ in definition)=0 THEN RAISE EXCEPTION 'TICKET dispatcher differs; review rich-text upgrade'; END IF;
     definition:=replace(definition,$before$'description',trim(payload->>'description'),'reporterUid'$before$,$after$'description',trim(payload->>'description'),'richDocument',payload->'richDocument','reporterUid'$after$);
-    IF position($before$        ev:=jsonb_build_object('before'$before$ in definition)=0 THEN RAISE EXCEPTION 'MES dispatcher differs; review rich-text upgrade'; END IF;
+    IF position($before$        ev:=jsonb_build_object('before'$before$ in definition)=0 THEN RAISE EXCEPTION 'TICKET dispatcher differs; review rich-text upgrade'; END IF;
     definition:=replace(definition,$before$        ev:=jsonb_build_object('before'$before$,$after$        changes:=changes||jsonb_build_object('richDocument',payload->'richDocument');
         ev:=jsonb_build_object('before'$after$);
-    IF position($before$'description',old->'description'),'after',changes-'updatedAt'$before$ in definition)=0 THEN RAISE EXCEPTION 'MES dispatcher differs; review rich-text upgrade'; END IF;
+    IF position($before$'description',old->'description'),'after',changes-'updatedAt'$before$ in definition)=0 THEN RAISE EXCEPTION 'TICKET dispatcher differs; review rich-text upgrade'; END IF;
     definition:=replace(definition,$before$'description',old->'description'),'after',changes-'updatedAt'$before$,$after$'description',old->'description','richDocument',old->'richDocument'),'after',changes-'updatedAt'$after$);
-    IF position($before$or tick-(r->>'createdAt')::bigint>900000$before$ in definition)=0 THEN RAISE EXCEPTION 'MES dispatcher differs; review rich-text upgrade'; END IF;
+    IF position($before$or tick-(r->>'createdAt')::bigint>900000$before$ in definition)=0 THEN RAISE EXCEPTION 'TICKET dispatcher differs; review rich-text upgrade'; END IF;
     definition:=replace(definition,$before$or tick-(r->>'createdAt')::bigint>900000$before$,$after$or (not own and tick-(r->>'createdAt')::bigint>900000)$after$);
     EXECUTE definition;
   END IF;

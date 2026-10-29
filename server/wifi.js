@@ -9,8 +9,8 @@ export function wifiCommand(action,data={}){
 }
 export function wifiRouter(pool){
  const router=Router();
- router.use(async(req,res,next)=>{const {rows:[row]}=await pool.query('select public.mes_dispatch($1,$2,$3) result',['getSession',{},actorFor(req.cookies.th_mes,req.headers['x-mes-tester'])]);if(!row.result?.isOwner)return res.sendStatus(403);next();});
- router.get('/',async(req,res)=>{if(req.app.locals.mesOnly)return res.json({available:false});try{res.json(await wifiCommand('status'));}catch{res.json({available:false});}});
- router.post('/:action',async(req,res)=>{if(req.app.locals.mesOnly)return res.sendStatus(404);if(!['connect','confirm'].includes(req.params.action))return res.sendStatus(400);res.json(await wifiCommand(req.params.action,req.body));});
+ router.use(async(req,res,next)=>{const {rows:[row]}=await pool.query('select public.ticket_dispatch($1,$2,$3) result',['getSession',{},actorFor(req.cookies.th_ticket,req.headers['x-ticket-tester'])]);if(!row.result?.isOwner)return res.sendStatus(403);next();});
+ router.get('/',async(req,res)=>{if(req.app.locals.ticketOnly)return res.json({available:false});try{res.json(await wifiCommand('status'));}catch{res.json({available:false});}});
+ router.post('/:action',async(req,res)=>{if(req.app.locals.ticketOnly)return res.sendStatus(404);if(!['connect','confirm'].includes(req.params.action))return res.sendStatus(400);res.json(await wifiCommand(req.params.action,req.body));});
  return router;
 }

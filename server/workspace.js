@@ -19,7 +19,7 @@ export function workspaceRouter(pool, filesRoot) {
   async function pruneNotice(ids) {
     if (!ids?.length) return;
     const { rows } = await pool.query(
-      "delete from public.mes_media m where m.id=any($1::text[]) and m.purpose='notice' and not exists(select 1 from public.mes_workspace w where w.kind='announcements' and coalesce(w.data->'media','[]'::jsonb) ? m.id) returning m.id",
+      "delete from public.ticket_media m where m.id=any($1::text[]) and m.purpose='notice' and not exists(select 1 from public.ticket_workspace w where w.kind='announcements' and coalesce(w.data->'media','[]'::jsonb) ? m.id) returning m.id",
       [ids],
     );
     for (const item of rows)
@@ -30,7 +30,7 @@ export function workspaceRouter(pool, filesRoot) {
     if (!actor.session) {if(owner)throw fail(401,"Sign in first");return {isOwner:false,isViewer:true};}
     const {
       rows: [row],
-    } = await pool.query("select public.mes_dispatch($1,$2,$3) result", [
+    } = await pool.query("select public.ticket_dispatch($1,$2,$3) result", [
       "getSession",
       {},
       actor,
@@ -39,28 +39,28 @@ export function workspaceRouter(pool, filesRoot) {
     return row.result;
   }
   const actor = (req) =>
-    actorFor(req.cookies.th_mes, req.headers["x-mes-tester"]);
+    actorFor(req.cookies.th_ticket, req.headers["x-ticket-tester"]);
   router.get("/media/:id", async (req, res) => {
     const current = await session(actor(req));
     if (!/^[a-f0-9-]{36}$/.test(req.params.id)) return res.sendStatus(404);
     const {
       rows: [media],
     } = await pool.query(
-      "select * from public.mes_media where id=$1 and ready",
+      "select * from public.ticket_media where id=$1 and ready",
       [req.params.id],
     );
     if (!media) return res.sendStatus(404);
     if (media.purpose === "notice" && !current.isOwner) {
       const { rowCount } = await pool.query(
-        "select 1 from public.mes_workspace w where w.kind='announcements' and w.data->>'active'='true' and coalesce(w.data->'media','[]'::jsonb) ? $1",
+        "select 1 from public.ticket_workspace w where w.kind='announcements' and w.data->>'active'='true' and coalesce(w.data->'media','[]'::jsonb) ? $1",
         [media.id],
       );
       if (!rowCount) return res.sendStatus(404);
     }
-    if(media.purpose==='page'&&!current.isOwner){const allowed=await pool.query("select 1 from public.mes_pages p where not deleted and active and (visibility='public' or ($2::boolean and visibility='members')) and exists(select 1 from jsonb_array_elements(p.widgets) w where coalesce(w->'media','[]'::jsonb) ? $1)",[media.id,!current.isViewer]);if(!allowed.rowCount)return res.sendStatus(404);}
+    if(media.purpose==='page'&&!current.isOwner){const allowed=await pool.query("select 1 from public.ticket_pages p where not deleted and active and (visibility='public' or ($2::boolean and visibility='members')) and exists(select 1 from jsonb_array_elements(p.widgets) w where coalesce(w->'media','[]'::jsonb) ? $1)",[media.id,!current.isViewer]);if(!allowed.rowCount)return res.sendStatus(404);}
     if(media.purpose==='notification'){
       if(current.isViewer)throw fail(401,'Sign in first');
-      await pool.query('select public.mes_dispatch($1,$2,$3) result',['canReadNotificationMedia',{id:media.id},actor(req)]);
+      await pool.query('select public.ticket_dispatch($1,$2,$3) result',['canReadNotificationMedia',{id:media.id},actor(req)]);
     }
     const documentFile=!media.type.startsWith('image/')&&!media.type.startsWith('video/');
     if(req.query.download==='1'||(documentFile&&!(media.type==='application/pdf'&&req.query.inline==='1')))res.attachment(media.title);
@@ -87,7 +87,7 @@ export function workspaceRouter(pool, filesRoot) {
     const {
       rows: [media],
     } = await pool.query(
-      "select * from public.mes_media where id=$1 and not ready",
+      "select * from public.ticket_media where id=$1 and not ready",
       [grant.path],
     );
     if (!media) return res.sendStatus(404);
@@ -119,7 +119,7 @@ export function workspaceRouter(pool, filesRoot) {
       if(!cloud)await publishFile(temporary, path);
       const db=await pool.connect();
       try {await db.query('begin');if(cloud)await commitCloudRecord(db,cloud);
-        await db.query("update public.mes_media set ready=true where id=$1", [media.id]);await db.query('commit');
+        await db.query("update public.ticket_media set ready=true where id=$1", [media.id]);await db.query('commit');
       } catch (error) {
         await db.query('rollback');if(cloud)await driveApi(`files/${encodeURIComponent(cloud.drive_id)}`,{method:'DELETE'}).catch(()=>{});else await rm(path, {force:true});throw error;
       }finally{db.release();}
@@ -140,10 +140,10 @@ export function workspaceRouter(pool, filesRoot) {
     const current = await session(actor(req), action !== "read");
     if (action === "read") {
       const { rows } = await pool.query(
-        "select kind,id,data from public.mes_workspace order by coalesce(data->>'updatedAt','0') desc,id",
+        "select kind,id,data from public.ticket_workspace order by coalesce(data->>'updatedAt','0') desc,id",
       );
       const { rows: videos } = await pool.query(
-        "select id,title,type,size,purpose from public.mes_media where ready order by created_at,id",
+        "select id,title,type,size,purpose from public.ticket_media where ready order by created_at,id",
       );
       return res.json({
         announcements: rows
@@ -198,7 +198,7 @@ export function workspaceRouter(pool, filesRoot) {
         )
           throw fail(400, "Maximum five notice attachments");
         const { rowCount } = await pool.query(
-          "select id from public.mes_media where id=any($1::text[]) and ready and purpose='notice'",
+          "select id from public.ticket_media where id=any($1::text[]) and ready and purpose='notice'",
           [media],
         );
         if (rowCount !== media.length)
@@ -224,13 +224,13 @@ export function workspaceRouter(pool, filesRoot) {
         kind === "announcements"
           ? (
               await pool.query(
-                "select data from public.mes_workspace where kind='announcements' and id=$1",
+                "select data from public.ticket_workspace where kind='announcements' and id=$1",
                 [id],
               )
             ).rows[0]?.data.media
           : [];
       const result = await pool.query(
-        "insert into public.mes_workspace(kind,id,data) select $1,$2,$3 where exists(select 1 from public.mes_workspace where kind=$1 and id=$2) or (select count(*) from public.mes_workspace where kind=$1)<$4 on conflict(kind,id) do update set data=excluded.data returning id",
+        "insert into public.ticket_workspace(kind,id,data) select $1,$2,$3 where exists(select 1 from public.ticket_workspace where kind=$1 and id=$2) or (select count(*) from public.ticket_workspace where kind=$1)<$4 on conflict(kind,id) do update set data=excluded.data returning id",
         [kind, id, value, max],
       );
       if (!result.rowCount) throw fail(400, "Workspace limit reached");
@@ -246,7 +246,7 @@ export function workspaceRouter(pool, filesRoot) {
       if (data.kind === "issueTypes" && data.id === "general")
         throw fail(400, "General is retained for older clients");
       const { rows: removed } = await pool.query(
-        "delete from public.mes_workspace where kind=$1 and id=$2 returning data",
+        "delete from public.ticket_workspace where kind=$1 and id=$2 returning data",
         [data.kind, data.id],
       );
       if (data.kind === "announcements")
@@ -280,11 +280,11 @@ export function workspaceRouter(pool, filesRoot) {
       )
         throw fail(400, "Invalid video");
       await pool.query(
-        "delete from public.mes_media where not ready and created_at<now()-interval '1 day' and not exists(select 1 from public.mes_uploads u where u.kind='media' and u.path=mes_media.id)",
+        "delete from public.ticket_media where not ready and created_at<now()-interval '1 day' and not exists(select 1 from public.ticket_uploads u where u.kind='media' and u.path=ticket_media.id)",
       );
       const id = randomUUID();
       const created = await pool.query(
-        "insert into public.mes_media(id,title,type,size,purpose) select $1,$2,$3,$4::bigint,$5 where (select count(*) from public.mes_media where purpose=$5)<(case when $5='playlist' then 20 else 150 end) and (select coalesce(sum(size),0) from public.mes_media)+(select coalesce(sum(size),0) from public.files)+(select coalesce(sum(size),0) from public.mes_uploads where kind='ticket' and not complete and expires>now())+$4::bigint<=$6::bigint returning id",
+        "insert into public.ticket_media(id,title,type,size,purpose) select $1,$2,$3,$4::bigint,$5 where (select count(*) from public.ticket_media where purpose=$5)<(case when $5='playlist' then 20 else 150 end) and (select coalesce(sum(size),0) from public.ticket_media)+(select coalesce(sum(size),0) from public.files)+(select coalesce(sum(size),0) from public.ticket_uploads where kind='ticket' and not complete and expires>now())+$4::bigint<=$6::bigint returning id",
         [id, data.title.trim(), data.type, data.size, purpose, storageQuota()],
       );
       if (!created.rowCount)
@@ -294,7 +294,7 @@ export function workspaceRouter(pool, filesRoot) {
         "insert into public.file_grants(hash,action,path,actor,expires) values($1,'workspaceVideo',$2,$3,now()+interval '5 minutes')",
         [hash(grant), id, actor(req)],
       );
-      return res.json({ id, url: `/api/mes/media-upload/${grant}` });
+      return res.json({ id, url: `/api/ticket/media-upload/${grant}` });
     }
     if (action === "videoUpdate") {
       if (
@@ -303,16 +303,16 @@ export function workspaceRouter(pool, filesRoot) {
         data.title.length > 140
       )
         throw fail(400, "Invalid title");
-      await pool.query("update public.mes_media set title=$2 where id=$1", [
+      await pool.query("update public.ticket_media set title=$2 where id=$1", [
         data.id,
         data.title.trim(),
       ]);
       return res.json({ ok: true });
     }
     if (action === "videoDelete") {
-      if((await pool.query("select 1 from public.mes_media where id=$1 and purpose in ('page','notification')",[data.id])).rowCount)throw fail(409,'Manage this file from its content tab.');
+      if((await pool.query("select 1 from public.ticket_media where id=$1 and purpose in ('page','notification')",[data.id])).rowCount)throw fail(409,'Manage this file from its content tab.');
       const { rowCount } = await pool.query(
-        "select 1 from public.mes_workspace where kind='announcements' and coalesce(data->'media','[]'::jsonb) ? $1",
+        "select 1 from public.ticket_workspace where kind='announcements' and coalesce(data->'media','[]'::jsonb) ? $1",
         [data.id],
       );
       if (rowCount)
@@ -320,7 +320,7 @@ export function workspaceRouter(pool, filesRoot) {
       const {
         rows: [row],
       } = await pool.query(
-        "delete from public.mes_media where id=$1 returning id",
+        "delete from public.ticket_media where id=$1 returning id",
         [data.id],
       );
       if (row) {await removeCloudFile(pool,`media/${row.id}`);await deleteEverywhere(filesRoot, `media/${row.id}`);}

@@ -1,7 +1,7 @@
 name: Build, test and package
 on:
   push:
-    branches: [main]
+    branches: [main, transition/ticket-internals]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -70,6 +70,6 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: |
             ghcr.io/tuanpham0411/th-ticket:${{ github.sha }}
-            ghcr.io/tuanpham0411/th-ticket:latest
+            ${{ github.ref == 'refs/heads/main' && 'ghcr.io/tuanpham0411/th-ticket:latest' || '' }}
           cache-from: type=gha,scope=th-ticket-${{ matrix.target }}
           cache-to: type=gha,mode=max,ignore-error=true,scope=th-ticket-${{ matrix.target }}
