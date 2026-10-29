@@ -1,0 +1,59 @@
+name: Deploy TH.Ticket cutover
+on:
+  push:
+    paths: ['.github/workflows/deploy-ticket-cutover.yml']
+permissions: {contents: read, packages: read}
+concurrency:
+  group: ticket-cutover
+  cancel-in-progress: false
+jobs:
+  cancel-queued:
+    runs-on: ubuntu-24.04
+    permissions: {actions: write}
+    steps:
+      - name: Cancel the deployment waiting for the old label filter
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl --fail --silent --show-error -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/repos/TuanPham0411/TH-Ticket/actions/runs/40815955486/cancel
+  deploy:
+    needs: cancel-queued
+    runs-on: [self-hosted, Linux, ARM64]
+    timeout-minutes: 30
+    env:
+      RELEASE_SHA: 75cc7561ca2adc96b62326b5c6a8ba56ab5a3c16
+      DOCKER_CONFIG: /tmp/th-managed-registry-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Deploy immutable images with the TH-Server implementation
+        env:
+          SELECTED_RUNNER: '${{ runner.name }}'
+          REGISTRY_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+          REGISTRY_USER: '${{ github.actor }}'
+          TH_APPLICATION: mes-ticket
+          TH_REPOSITORY: '${{ github.event.repository.name }}'
+        run: |
+          set -euo pipefail
+          test "$SELECTED_RUNNER" = th-ticket
+          umask 077
+          RELEASE_SOURCE="$(mktemp -d "$RUNNER_TEMP/th-release.XXXXXX")"
+          export RELEASE_SOURCE
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true; rm -rf "$DOCKER_CONFIG" "$RELEASE_SOURCE"' EXIT
+          registered=false
+          for attempt in 1 2 3; do
+            if printf '%s' "$REGISTRY_TOKEN" | timeout 60s docker login ghcr.io --username "$REGISTRY_USER" --password-stdin; then
+              registered=true
+              break
+            fi
+            sleep 5
+          done
+          test "$registered" = true
+          for file in compose.yaml storage.compose.yaml database-init.sh; do
+            curl --fail --silent --show-error --location --retry 3 --max-time 60 "https://raw.githubusercontent.com/TuanPham0411/$TH_REPOSITORY/$RELEASE_SHA/$file" -o "$RELEASE_SOURCE/$file"
+          done
+          curl --fail --silent --show-error --location --retry 3 --max-time 60 https://raw.githubusercontent.com/TuanPham0411/TH-RPI.Server/7c47a6b2c989b876d4c8afe1050fed5300755848/deploy/application.py -o "$RELEASE_SOURCE/application.py"
+          python3 - <<'PYTHON'
+          import os,shlex,subprocess
+          source=os.environ['RELEASE_SOURCE']
+          command=['python3',source+'/application.py','--application',os.environ['TH_APPLICATION'],'--image-tag',os.environ['RELEASE_SHA'],'--source',source]
+          subprocess.run(['sg','docker','-c',shlex.join(command)],check=True)
+          PYTHON
