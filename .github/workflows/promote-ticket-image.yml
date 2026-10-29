@@ -1,0 +1,19 @@
+name: Promote verified Ticket image
+on:
+  push:
+    branches: [ops/promote-ticket-image]
+    paths: ['.github/workflows/promote-ticket-image.yml']
+permissions: {contents: read, packages: write}
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Point latest at the verified multiarch Ticket release
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          set -eu
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
+          docker buildx imagetools create -t ghcr.io/tuanpham0411/th-ticket:latest ghcr.io/tuanpham0411/th-ticket:2f261d191af3019f5785be5a371e8c1d5e5cda6f
+          docker buildx imagetools inspect ghcr.io/tuanpham0411/th-ticket:latest
