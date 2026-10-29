@@ -1,0 +1,16 @@
+name: Inspect isolated Ticket recovery
+on:
+  push:
+    branches: [ops/ticket-recovery-progress]
+    paths: ['.github/workflows/ticket-recovery-progress.yml']
+permissions: {contents: read}
+jobs:
+  progress:
+    runs-on: [self-hosted, Linux, ARM64]
+    timeout-minutes: 5
+    steps:
+      - name: Read connection states without SQL or row contents
+        run: |
+          docker ps --format '{{.Names}} {{.Status}}'
+          docker exec ticket-database-1 psql -X -U postgres -d postgres -At -c "SELECT json_build_object('database',datname,'state',state,'waitType',wait_event_type,'waitEvent',wait_event) FROM pg_stat_activity WHERE datname LIKE 'th_recovery_ticket_%'"
+          docker stats --no-stream --format '{{.Name}} {{.CPUPerc}} {{.MemUsage}}'
