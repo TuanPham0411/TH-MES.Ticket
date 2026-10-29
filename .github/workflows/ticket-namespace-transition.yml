@@ -1,0 +1,30 @@
+name: Transition Ticket namespace
+on:
+  push:
+    paths: ['.github/workflows/ticket-namespace-transition.yml']
+permissions: {contents: read, packages: read}
+jobs:
+  transition:
+    runs-on: [self-hosted, Linux, ARM64]
+    timeout-minutes: 90
+    env:
+      DOCKER_CONFIG: /tmp/th-ticket-transition-${{ github.run_id }}
+    steps:
+      - name: Migrate database, media and authenticated Drive history
+        env:
+          SELECTED_RUNNER: ${{ runner.name }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          set -eu
+          test "$SELECTED_RUNNER" = th-ticket
+          umask 077
+          WORK="$(mktemp -d)"
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true; rm -rf "$DOCKER_CONFIG" "$WORK"' EXIT
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
+          for file in transition.py ledger-transition.mjs test_transition.py; do
+            curl -fsSL --retry 3 https://raw.githubusercontent.com/TuanPham0411/TH-RPI.Server/ac5fceec1d1d22285e30d6efb31e215245d55da4/deploy/ticket-transition/$file -o "$WORK/$file"
+          done
+          cd "$WORK"
+          python3 -m unittest -v test_transition.py
+          python3 transition.py

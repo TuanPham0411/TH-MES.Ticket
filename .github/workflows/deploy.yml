@@ -1,9 +1,5 @@
 name: Deploy managed application
 on:
-  workflow_run:
-    workflows: ['Build, test and package']
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
 permissions: {contents: read, packages: read}
 concurrency:
