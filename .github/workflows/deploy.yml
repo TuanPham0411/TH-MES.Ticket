@@ -16,7 +16,7 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' &&
        github.event.workflow_run.head_repository.full_name == github.repository &&
        (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch'))
-    runs-on: [self-hosted, Linux, ARM64]
+    runs-on: [self-hosted, Linux, ARM64, th-ticket]
     timeout-minutes: 30
     env:
       RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
@@ -31,7 +31,7 @@ jobs:
           TH_REPOSITORY: '${{ github.event.repository.name }}'
         run: |
           set -euo pipefail
-          case "$SELECTED_RUNNER" in th-mes|th-mes.ticket) ;; *) exit 1 ;; esac
+          test "$SELECTED_RUNNER" = th-ticket
           umask 077
           RELEASE_SOURCE="$(mktemp -d "$RUNNER_TEMP/th-release.XXXXXX")"
           export RELEASE_SOURCE
