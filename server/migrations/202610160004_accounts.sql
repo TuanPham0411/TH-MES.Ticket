@@ -33,7 +33,7 @@ begin
  delete from sessions where uid=account_uid;
  return jsonb_build_object('uid',account_uid,'username',uname,'activationCode',value,'expiresHours',72);
 end $$;
-insert into ticket_private.records(collection,id,data) values('users','ticket-owner','{"username":"hpham","displayName":"TICKET Owner","active":true,"accountState":"pending"}') on conflict(collection,id) do nothing;
+insert into ticket_private.records(collection,id,data) values('users','ticket-owner','{"username":"hpham","displayName":"Ticket Owner","active":true,"accountState":"pending"}') on conflict(collection,id) do nothing;
 insert into ticket_private.credentials(uid,role) values('ticket-owner','owner') on conflict(uid) do nothing;
 create or replace function public.ticket_issue_owner_activation() returns jsonb
 language plpgsql security definer set search_path=ticket_private,extensions,pg_temp as $$
@@ -54,7 +54,7 @@ BEGIN
     if not coalesce((u->>'active')::boolean,false) or not coalesce((u->>'isTester')::boolean,false) then raise exception 'Tester unavailable'; end if;
     own:=false; verified:=true;
   end if;
-$before$ in definition)=0 THEN RAISE EXCEPTION 'TICKET dispatcher differs; run full installer'; END IF;
+$before$ in definition)=0 THEN RAISE EXCEPTION 'Ticket dispatcher differs; run full installer'; END IF;
   definition:=replace(definition,$before$  if own and actor->>'tester'='true' then
     uid:='ticket-tester';
     select data into u from records where collection='users' and id=uid;
@@ -71,7 +71,7 @@ $before$,$after$$after$);
         verified := not win or (sess.device_id is not null and exists(select 1 from records where collection='devices' and id=sess.device_id and (data->>'active')::boolean));
       end if;
     end if;
-  end if;$before$ in definition)=0 THEN RAISE EXCEPTION 'TICKET dispatcher differs; run full installer'; END IF;
+  end if;$before$ in definition)=0 THEN RAISE EXCEPTION 'Ticket dispatcher differs; run full installer'; END IF;
   definition:=replace(definition,$before$  if not own and actor ? 'session' then
     select * into sess from sessions where hash=encode(digest(actor->>'session','sha256'),'hex') and expires_at>now();
     if found then
@@ -101,7 +101,7 @@ $before$,$after$$after$);
     own:=false; verified:=true;
   end if;
 $after$);
-  IF position($before$  select coalesce((data->>'requiresWindows')::boolean,true) into win from records where collection='settings' and id='policy';$before$ in definition)=0 THEN RAISE EXCEPTION 'TICKET dispatcher differs; run full installer'; END IF;
+  IF position($before$  select coalesce((data->>'requiresWindows')::boolean,true) into win from records where collection='settings' and id='policy';$before$ in definition)=0 THEN RAISE EXCEPTION 'Ticket dispatcher differs; run full installer'; END IF;
   definition:=replace(definition,$before$  select coalesce((data->>'requiresWindows')::boolean,true) into win from records where collection='settings' and id='policy';$before$,$after$  -- Account lifecycle v1. Public operations return generic failures without leaking account existence.
   if action in ('startWindowsChallenge','completeWindowsChallenge','loginManagedUser') then raise exception 'Legacy sign-in disabled'; end if;
   if action in ('passwordLogin','activateAccount') then
@@ -129,7 +129,7 @@ $after$);
     return ticket_private.open_account_session(uid);
   end if;
   select coalesce((data->>'requiresWindows')::boolean,true) into win from records where collection='settings' and id='policy';$after$);
-  IF position($before$  if action='getSession' then$before$ in definition)=0 THEN RAISE EXCEPTION 'TICKET dispatcher differs; run full installer'; END IF;
+  IF position($before$  if action='getSession' then$before$ in definition)=0 THEN RAISE EXCEPTION 'Ticket dispatcher differs; run full installer'; END IF;
   definition:=replace(definition,$before$  if action='getSession' then$before$,$after$  if action='getProfile' then return jsonb_build_object('profile',who,'isOwner',own); end if;
   if action='saveProfile' then
     if who->>'isTester'='true' then raise exception 'Tester profile is read only'; end if;
@@ -189,13 +189,13 @@ $after$);
   end if;
   if action='manageUser' and op='deactivate' and payload->>'uid'='ticket-owner' then raise exception 'Reserved owner account'; end if;
   if action='getSession' then$after$);
-  IF position($before$  if action='getDirectory' then$before$ in definition)=0 THEN RAISE EXCEPTION 'TICKET dispatcher differs; run full installer'; END IF;
+  IF position($before$  if action='getDirectory' then$before$ in definition)=0 THEN RAISE EXCEPTION 'Ticket dispatcher differs; run full installer'; END IF;
   definition:=replace(definition,$before$  if action='getDirectory' then$before$,$after$  if action='getDirectory' then return '{"users":[],"requiresWindows":false,"accountMode":"password","accountVersion":1}'; end if;
   if action='getDirectory' then$after$);
   definition:=replace(definition,'win := coalesce(win,true);','win := false;');
-  definition:=replace(definition,$before$if own then who:=jsonb_build_object('uid',uid,'username','hpham','displayName',coalesce(actor->>'name','TICKET Owner'),'owner',true);$before$,$after$if own then
+  definition:=replace(definition,$before$if own then who:=jsonb_build_object('uid',uid,'username','hpham','displayName',coalesce(actor->>'name','Ticket Owner'),'owner',true);$before$,$after$if own then
     select data into u from records where collection='users' and id=uid;
-    who:=coalesce(u,'{}')||jsonb_build_object('uid',uid,'username','hpham','displayName',coalesce(u->>'displayName',actor->>'name','TICKET Owner'),'owner',true);$after$);
+    who:=coalesce(u,'{}')||jsonb_build_object('uid',uid,'username','hpham','displayName',coalesce(u->>'displayName',actor->>'name','Ticket Owner'),'owner',true);$after$);
   definition:=replace(definition,E'declare\n',E'<<ticket_account>>\ndeclare\n');
   definition:=replace(definition,$before$if who is null then raise exception 'Access denied. Verify your Windows identity again'; end if;$before$,$after$if who is null then raise exception 'Session expired or account inactive' using errcode='28000'; end if;$after$);
   definition:=replace(definition,$before$jsonb_build_object('user',who,'isOwner',own,'requiresWindows',win)$before$,$after$jsonb_build_object('user',who,'isOwner',own,'requiresWindows',false,'accountVersion',1)$after$);

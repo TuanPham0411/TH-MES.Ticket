@@ -2,8 +2,8 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {normalizeDocument,documentText} from '../ticket/site/rich-document.js';
 test('rich feedback preserves bounded text styles and reserved image references',()=>{
- const rich=normalizeDocument({version:1,ops:[{insert:'TICKET report',attributes:{bold:true,size:'24px',font:'monospace',color:'#123456'}},{insert:'\n',attributes:{header:2}},{insert:{image:0}},{insert:'\n'}]});
- assert.equal(documentText(rich),'TICKET report'); assert.equal(rich.ops[0].attributes.size,'24px');assert.equal(rich.ops[2].insert.image,0);
+ const rich=normalizeDocument({version:1,ops:[{insert:'Ticket report',attributes:{bold:true,size:'24px',font:'monospace',color:'#123456'}},{insert:'\n',attributes:{header:2}},{insert:{image:0}},{insert:'\n'}]});
+ assert.equal(documentText(rich),'Ticket report'); assert.equal(rich.ops[0].attributes.size,'24px');assert.equal(rich.ops[2].insert.image,0);
  assert.equal(documentText(normalizeDocument({version:1,ops:[{insert:{image:1}},{insert:'\n'}]})),'Image feedback');
 });
 test('rich feedback cannot store remote images, scripts, unsafe styles or unbounded content',()=>{

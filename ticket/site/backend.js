@@ -20,7 +20,7 @@ export async function api(name, data = {}) {
   const response = await fetch('/api/ticket', {
     method: 'POST',
     credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', ...(tester ? { 'X-TICKET-Tester': 'true' } : {}) },
+    headers: { 'Content-Type': 'application/json', ...(tester ? { 'X-Ticket-Tester': 'true' } : {}) },
     body: JSON.stringify({ name, data }),
   });
   const body = await response.json();
@@ -49,8 +49,8 @@ export function watchRecords(path, onData, onError, order) {
   };
 }
 export async function uploadAttachment(path, file, type) {
-  await uploadChunks({kind:'ticket',path,file,type,headers:tester?{'X-TICKET-Tester':'true'}:{}});
-  await uploadPreview('ticket',path,file,tester?{'X-TICKET-Tester':'true'}:{});
+  await uploadChunks({kind:'ticket',path,file,type,headers:tester?{'X-Ticket-Tester':'true'}:{}});
+  await uploadPreview('ticket',path,file,tester?{'X-Ticket-Tester':'true'}:{});
 }
 export async function downloadAttachment(path) {
   const { url } = await api('downloadUrl', { path });

@@ -55,7 +55,7 @@ test('public clients cannot inject owner claims or traverse files',async()=>{
  assert.equal((await api('getDirectory',{},'','ticket.th.io.vn',{origin:'https://evil.test'})).status,403);
  const result=await api('getDirectory');assert.deepEqual(result.body.users,[]);
 });
-test('TICKET activation, CRUD, private files, tester restrictions, revocation',async()=>{
+test('Ticket activation, CRUD, private files, tester restrictions, revocation',async()=>{
  const {rows:[activation]}=await pool.query('select public.ticket_issue_owner_activation() as result');
  const login=await api('activateAccount',{username:'hpham',activationCode:activation.result.activationCode,password:'test-owner-password'});
  assert.equal(login.status,200,JSON.stringify(login.body));assert.ok(login.cookie);assert.equal(login.body.sessionToken,undefined);assert.match(login.headers.get('set-cookie'),/HttpOnly/);assert.match(login.headers.get('set-cookie'),/Secure/);
@@ -213,7 +213,7 @@ test('portfolio server authorization, profile, bookmarks, inquiries and reset to
  assert.equal((await query('session',{})).body.user,null);
  assert.equal((await api('consumeToken',{purpose:'reset',token:resetToken,password:'new-test-password'},'','th.io.vn')).status,403);
 });
-test('runtime role cannot read private TICKET credentials or bootstrap owner',async()=>{
+test('runtime role cannot read private Ticket credentials or bootstrap owner',async()=>{
  const connection=await pool.connect();
  try {await connection.query('set role th_api');
   await assert.rejects(connection.query('select * from ticket_private.credentials'),e=>e.code==='42501');
@@ -449,7 +449,7 @@ test('content tabs publish bounded widgets and documents with owner/member/viewe
  const pdf=Buffer.from('%PDF-1.4\n% test document\n%%EOF');const reserved=await call('pages/media','POST',{name:'Training.pdf',type:'application/pdf',size:pdf.length});assert.equal(reserved.status,201);const id=reserved.body.id;
  const upload=await fetch(base+'/api/ticket/uploads',{method:'POST',headers:{'x-forwarded-host':'ticket.th.io.vn',cookie:owner,'Content-Type':'application/json'},body:JSON.stringify({kind:'media',path:id,type:'application/pdf',size:pdf.length})});assert.equal(upload.status,200);const uploadId=(await upload.json()).id;assert.equal((await fetch(base+'/api/ticket/uploads/'+uploadId,{method:'PATCH',headers:{'x-forwarded-host':'ticket.th.io.vn',cookie:owner,'Content-Type':'application/octet-stream','Upload-Offset':'0'},body:pdf})).status,200);
  assert.equal((await fetch(base+'/api/ticket/media/'+id,{headers:{'x-forwarded-host':'ticket.th.io.vn'}})).status,404,'Unpublished page documents stay private');
- const make=(type,extra={})=>({id:crypto.randomUUID(),type,title:type,body:'Safe text',width:'half',tone:'default',links:[],media:[],...extra});const widgets=[make('heading'),make('links',{links:[{label:'Documentation',url:'https://example.com/manual'},{label:'Intranet',url:'http://192.168.1.5:8080/'},{label:'Drive',url:'Z:\\TICKET'},{label:'Site',url:'/page/internal'}]}),make('documents',{media:[id]})];
+ const make=(type,extra={})=>({id:crypto.randomUUID(),type,title:type,body:'Safe text',width:'half',tone:'default',links:[],media:[],...extra});const widgets=[make('heading'),make('links',{links:[{label:'Documentation',url:'https://example.com/manual'},{label:'Intranet',url:'http://192.168.1.5:8080/'},{label:'Drive',url:'Z:\\Ticket'},{label:'Site',url:'/page/internal'}]}),make('documents',{media:[id]})];
  assert.equal((await call('pages/'+p.id,'PUT',{...p,active:true,widgets},user)).status,403);
  assert.equal((await call('pages/'+p.id,'PUT',{...p,widgets:[make('links',{links:[{label:'Bad',url:'javascript:alert(1)'}]})]})).status,400);
  assert.equal((await call('pages/'+p.id,'PUT',{...p,widgets:[make('image',{media:[id]})]})).status,400);

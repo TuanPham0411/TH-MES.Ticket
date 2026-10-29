@@ -1,6 +1,6 @@
-# TH TICKET Ticket
+# TH Ticket Ticket
 
-Independent TICKET feedback and ticket workspace for https://ticket.th.io.vn. Repository: https://github.com/TuanPham0411/TH-Ticket. Split from Thien-Ha at `66aa6e527d496679e3941eae02587e17660940ff`. No portfolio frontend or externally hosted Firebase/Supabase service is needed.
+Independent Ticket feedback and ticket workspace for https://ticket.th.io.vn. Repository: https://github.com/TuanPham0411/TH-Ticket. Split from Thien-Ha at `66aa6e527d496679e3941eae02587e17660940ff`. No portfolio frontend or externally hosted Firebase/Supabase service is needed.
 
 ## Included
 
@@ -8,7 +8,7 @@ Existing owner/admin/user account management, mandatory incident time and image/
 
 ## Build and test
 
-Use Node.js 22.12+ and PostgreSQL 17. Run `npm ci`, `npm test`, `npm run build`. Run `npm run test:integration` with `TEST_DATABASE_URL` pointing to a disposable `_test` database. The integration suite preserves the legacy shared migration behavior; its combined mode exists only for compatibility checks. The production launcher and default backend serve TICKET only and reject `/api/portfolio`.
+Use Node.js 22.12+ and PostgreSQL 17. Run `npm ci`, `npm test`, `npm run build`. Run `npm run test:integration` with `TEST_DATABASE_URL` pointing to a disposable `_test` database. The integration suite preserves the legacy shared migration behavior; its combined mode exists only for compatibility checks. The production launcher and default backend serve Ticket only and reject `/api/portfolio`.
 
 ## Docker
 
@@ -18,7 +18,7 @@ Set Google callback `https://ticket.th.io.vn/api/oauth/callback`; optional Drive
 
 ## Portable scope
 
-Tickets/accounts/dashboard/notifications/local storage run in the unprivileged container. Physical Wi-Fi changes, mounted disk administration and host backup brokers require separately reviewed RPI host integrations; the container does not get host root privileges. `docs/LEGACY-STANDALONE.md` records original portable behavior. Full versioned SQL history is retained for existing-data compatibility, including historical unused portfolio tables; the TICKET HTTP service does not expose them. No import from another repository is used at build/runtime.
+Tickets/accounts/dashboard/notifications/local storage run in the unprivileged container. Physical Wi-Fi changes, mounted disk administration and host backup brokers require separately reviewed RPI host integrations; the container does not get host root privileges. `docs/LEGACY-STANDALONE.md` records original portable behavior. Full versioned SQL history is retained for existing-data compatibility, including historical unused portfolio tables; the Ticket HTTP service does not expose them. No import from another repository is used at build/runtime.
 
 ## Prepared release
 

@@ -70,7 +70,7 @@ export function initWorkspace({ state, toast, run, addEvidence }) {
       credentials: "same-origin",
       headers: {
         "Content-Type": "application/json",
-        ...(state.user?.isTester ? { "X-TICKET-Tester": "true" } : {}),
+        ...(state.user?.isTester ? { "X-Ticket-Tester": "true" } : {}),
       },
       body: JSON.stringify({ action, data }),
     });

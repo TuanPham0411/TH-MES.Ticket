@@ -1,4 +1,4 @@
-# TH-TICKET.Ticket: offline-ready ARM64 release
+# TH-Ticket.Ticket: offline-ready ARM64 release
 
 This archive contains the compiled web/API, SQL migrations and the checksum-verified official Node.js 22 Linux ARM64 runtime. It contains no production data, environment secrets or runner registrations. Source revision is in the artifact name. Verify its .sha256 before extraction. Do not deploy until the replacement TH-Server is provisioned.
 

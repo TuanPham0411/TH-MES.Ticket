@@ -1,6 +1,6 @@
 # Replacement TH-Server — deployment is deferred
 
-Repository: TuanPham0411/TH-TICKET.Ticket. This project builds and packages without executing anything on a self-hosted runner. No production deployment job is enabled.
+Repository: TuanPham0411/TH-Ticket.Ticket. This project builds and packages without executing anything on a self-hosted runner. No production deployment job is enabled.
 
 ## Preserve data before reinstalling the old RPI
 
@@ -16,6 +16,6 @@ The GitHub repository, Docker images and build artifacts contain code only. Back
 
 ## Restore existing application data
 
-TICKET retains its complete versioned migration history to support existing tickets/accounts. Restore the old consistent database dump and media backup into the TICKET instance before applying pending migrations. Historical portfolio tables in the old dump are not served by the TICKET runtime; retain the backup until the independent portfolio restore is verified. Preserve ticket IDs, evidence paths, notification settings and Drive mappings.
+Ticket retains its complete versioned migration history to support existing tickets/accounts. Restore the old consistent database dump and media backup into the Ticket instance before applying pending migrations. Historical portfolio tables in the old dump are not served by the Ticket runtime; retain the backup until the independent portfolio restore is verified. Preserve ticket IDs, evidence paths, notification settings and Drive mappings.
 
 Production secrets stay outside Git. Preserve originals until the restored service has passed verification.

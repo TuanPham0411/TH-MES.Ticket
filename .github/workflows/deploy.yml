@@ -48,7 +48,7 @@ jobs:
           for file in compose.yaml storage.compose.yaml database-init.sh; do
             curl --fail --silent --show-error --location --retry 3 --max-time 60 "https://raw.githubusercontent.com/TuanPham0411/$TH_REPOSITORY/$RELEASE_SHA/$file" -o "$RELEASE_SOURCE/$file"
           done
-          curl --fail --silent --show-error --location --retry 3 --max-time 60 https://raw.githubusercontent.com/TuanPham0411/TH-RPI.Server/7c47a6b2c989b876d4c8afe1050fed5300755848/deploy/application.py -o "$RELEASE_SOURCE/application.py"
+          curl --fail --silent --show-error --location --retry 3 --max-time 60 https://raw.githubusercontent.com/TuanPham0411/TH-RPI.Server/caa276f27da7c21bfc07a7f42e6c9513efe21e4e/deploy/application.py -o "$RELEASE_SOURCE/application.py"
           python3 - <<'PYTHON'
           import os,shlex,subprocess
           source=os.environ['RELEASE_SOURCE']

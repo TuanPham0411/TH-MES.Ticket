@@ -1,6 +1,6 @@
-# TICKET Ticket — standalone application
+# Ticket Ticket — standalone application
 
-TICKET Ticket is the child application of [TH portfolio](https://th.io.vn). Live instance: <https://ticket.th.io.vn>. Canonical source: `ticket/` and the shared `server/` in [Thien-Ha/main](https://github.com/TuanPham0411/Thien-Ha). The generated [`ticket-standalone` branch](https://github.com/TuanPham0411/Thien-Ha/tree/ticket-standalone) is a complete, independently buildable source tree. Make changes in `main`; the export workflow refreshes the generated branch without rewriting its history. `SOURCE.json` records the parent commit. The parent export workflow builds and validates every export; for CI in a separate repository, copy `ci/standalone.yml` to `.github/workflows/build.yml`.
+Ticket Ticket is the child application of [TH portfolio](https://th.io.vn). Live instance: <https://ticket.th.io.vn>. Canonical source: `ticket/` and the shared `server/` in [Thien-Ha/main](https://github.com/TuanPham0411/Thien-Ha). The generated [`ticket-standalone` branch](https://github.com/TuanPham0411/Thien-Ha/tree/ticket-standalone) is a complete, independently buildable source tree. Make changes in `main`; the export workflow refreshes the generated branch without rewriting its history. `SOURCE.json` records the parent commit. The parent export workflow builds and validates every export; for CI in a separate repository, copy `ci/standalone.yml` to `.github/workflows/build.yml`.
 
 ## Deploy with Docker Compose (x86-64 or ARM64)
 

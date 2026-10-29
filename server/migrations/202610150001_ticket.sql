@@ -43,7 +43,7 @@ begin
       end if;
     end if;
   end if;
-  if own then who:=jsonb_build_object('uid',uid,'username','hpham','displayName',coalesce(actor->>'name','TICKET Owner'),'owner',true);
+  if own then who:=jsonb_build_object('uid',uid,'username','hpham','displayName',coalesce(actor->>'name','Ticket Owner'),'owner',true);
   elsif verified then who:=u || jsonb_build_object('uid',uid,'owner',false);
   end if;
   if action='getDirectory' then
